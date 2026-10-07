@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { validarProjetoDeTeste } from "./projeto-de-teste";
 
 const ENV_FILE = path.resolve(__dirname, "../../.env.test.local");
 if (existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE);
@@ -16,7 +17,10 @@ function exigir(nome: string): string {
 const opcoes = { auth: { persistSession: false, autoRefreshToken: false } } as const;
 
 export function clienteServico(): SupabaseClient {
-  return createClient(exigir("SUPABASE_URL"), exigir("SUPABASE_SERVICE_ROLE_KEY"), opcoes);
+  const url = exigir("SUPABASE_URL");
+  // Guarda: toda escrita com service-role passa por aqui, antes de qualquer operacao.
+  validarProjetoDeTeste(url, process.env.TEST_SUPABASE_PROJECT_REF);
+  return createClient(url, exigir("SUPABASE_SERVICE_ROLE_KEY"), opcoes);
 }
 
 export function clienteAnonimo(): SupabaseClient {

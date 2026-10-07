@@ -48,6 +48,15 @@ describe("autenticar com falhas tecnicas", () => {
     expect(signOut).not.toHaveBeenCalled();
   });
 
+  it("erro transitorio em getUser apos o login nao vira conta sem empresa nem desloga", async () => {
+    const { db, signOut } = dbFalso({
+      login: { error: null },
+      usuario: { data: { user: null }, error: { name: "AuthRetryableFetchError", message: "503", status: 503 } },
+    });
+    expect(await autenticar(db, "a@b.com", "s")).toEqual({ erro: ERRO_FALHA_TEMPORARIA });
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
   it("sem perfil (consulta ok) desloga e informa conta nao vinculada", async () => {
     const { db, signOut } = dbFalso({ login: { error: null } });
     expect(await autenticar(db, "a@b.com", "s")).toEqual({

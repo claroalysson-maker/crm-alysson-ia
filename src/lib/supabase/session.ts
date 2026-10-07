@@ -13,12 +13,15 @@ export type EstadoSessao =
 
 /**
  * Valida o token com o Auth (getUser) e busca empresa/papel em `perfis`.
- * Falha na consulta de `perfis` NAO equivale a "sem perfil": lanca erro.
+ * Falha em `getUser` (exceto sessao ausente) ou na consulta de `perfis` nao equivale a
+ * "sem usuario"/"sem perfil": lanca erro.
  */
 export async function obterEstadoSessao(db: SupabaseClient): Promise<EstadoSessao> {
   const { data: auth, error: erroAuth } = await db.auth.getUser();
   if (erroAuth && erroAuth.name !== "AuthSessionMissingError") {
+    // Rede/5xx nao equivale a "sem usuario": quem chama falha fechado, sem deslogar.
     console.error("Falha ao validar usuario:", erroAuth.message);
+    throw new Error("Falha ao validar o usuario");
   }
   if (erroAuth || !auth.user) return { tipo: "sem-usuario" };
 
