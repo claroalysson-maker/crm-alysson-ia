@@ -5,4 +5,4 @@ export const loginSchema = z.object({
   senha: z.string().min(1),
 });
 
-export type EstadoLogin = { erro?: string };
+export type EstadoLogin = { erro?: string; email?: string };

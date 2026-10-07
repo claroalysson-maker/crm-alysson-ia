@@ -7,16 +7,23 @@ import { Label } from "@/components/ui/label";
 import type { EstadoLogin } from "@/lib/login-schema";
 import { entrar } from "./actions";
 
-const ESTADO_INICIAL: EstadoLogin = {};
-
-export function FormularioLogin() {
-  const [estado, acao, pendente] = useActionState(entrar, ESTADO_INICIAL);
+export function FormularioLogin({ erroInicial }: { erroInicial?: string }) {
+  const [estado, acao, pendente] = useActionState<EstadoLogin, FormData>(entrar, {
+    erro: erroInicial,
+  });
 
   return (
     <form action={acao} className="flex flex-col gap-4" noValidate>
       <div className="flex flex-col gap-2">
         <Label htmlFor="email">E-mail</Label>
-        <Input id="email" name="email" type="email" autoComplete="email" required />
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          defaultValue={estado.email}
+          required
+        />
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="senha">Senha</Label>

@@ -1,7 +1,18 @@
+import { Suspense } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { erroDaUrl } from "@/lib/login";
 import { FormularioLogin } from "./formulario-login";
 
-export default function PaginaLogin() {
+async function FormularioComErroDaUrl({
+  searchParams,
+}: {
+  searchParams: Promise<{ erro?: string | string[] }>;
+}) {
+  const { erro } = await searchParams;
+  return <FormularioLogin erroInicial={erroDaUrl(erro)} />;
+}
+
+export default function PaginaLogin({ searchParams }: PageProps<"/login">) {
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-12">
       <Card className="w-full max-w-sm">
@@ -10,7 +21,9 @@ export default function PaginaLogin() {
           <CardDescription>Acesse o CRM da sua empresa</CardDescription>
         </CardHeader>
         <CardContent>
-          <FormularioLogin />
+          <Suspense fallback={<FormularioLogin />}>
+            <FormularioComErroDaUrl searchParams={searchParams} />
+          </Suspense>
         </CardContent>
       </Card>
     </main>
