@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ConteudoDashboard } from "./conteudo";
+
+export const metadata: Metadata = { title: "Dashboard" };
 
 export default function PaginaDashboard() {
   return (

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import type { ParametrosClientes } from "@/lib/clientes/parametros";
 
 type Filtros = Pick<ParametrosClientes, "busca" | "status">;
@@ -23,9 +23,9 @@ function Passo({ href, children }: { href?: string; children: string }) {
     );
   }
   return (
-    <Button variant="outline" nativeButton={false} render={<Link href={href} />}>
+    <Link href={href} className={buttonVariants({ variant: "outline" })}>
       {children}
-    </Button>
+    </Link>
   );
 }
 

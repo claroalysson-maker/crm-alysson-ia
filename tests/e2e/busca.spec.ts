@@ -69,18 +69,38 @@ for (const [curinga, esperado] of [
   });
 }
 
-test("paginacao aparece com mais de 20 clientes e navega entre paginas", async ({ page }) => {
-  const nomes = Array.from({ length: 25 }, (_, i) => ({
+function nomesDeClientes(quantidade: number) {
+  return Array.from({ length: quantidade }, (_, i) => ({
     nome: `Cliente ${String(i + 1).padStart(2, "0")}`,
   }));
-  await semearClientes(nomes);
+}
+
+test("com exatamente 20 clientes nao ha paginacao", async ({ page }) => {
+  await semearClientes(nomesDeClientes(20));
+  await page.goto("/clientes");
+
+  await expect(page.locator(LINHAS)).toHaveCount(20);
+  await expect(page.getByRole("navigation", { name: "Paginação" })).toHaveCount(0);
+  await expect(page.getByText(/Página 1 de/)).toHaveCount(0);
+});
+
+test("com 21 clientes aparecem duas paginas", async ({ page }) => {
+  await semearClientes(nomesDeClientes(21));
+  await page.goto("/clientes");
+
+  await expect(page.getByText("Página 1 de 2")).toBeVisible();
+  await expect(page.locator(LINHAS)).toHaveCount(20);
+});
+
+test("paginacao aparece com mais de 20 clientes e navega entre paginas", async ({ page }) => {
+  await semearClientes(nomesDeClientes(25));
   await page.goto("/clientes");
 
   await expect(page.getByText("Página 1 de 2")).toBeVisible();
   await expect(page.locator(LINHAS)).toHaveCount(20);
 
-  // Achado: o Button do Base UI com render=<Link> expoe <a role="button">, nao role link.
-  const proxima = page.getByRole("navigation", { name: "Paginação" }).getByText("Próxima");
+  await expect(page.locator("a[role=button]")).toHaveCount(0);
+  const proxima = page.getByRole("link", { name: "Próxima" });
   await proxima.click();
 
   await expect(page).toHaveURL(/pagina=2/);

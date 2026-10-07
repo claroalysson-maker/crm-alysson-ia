@@ -20,6 +20,7 @@ vi.mock("@/app/(app)/clientes/actions", () => ({
 }));
 
 import { ConteudoClientes } from "@/app/(app)/clientes/conteudo";
+import { FiltrosClientes } from "@/components/clientes/filtros";
 import { Paginacao, hrefDaPagina } from "@/components/clientes/paginacao";
 import { TabelaClientes } from "@/components/clientes/tabela";
 import { formatarMoeda } from "@/lib/clientes/formato";
@@ -65,6 +66,26 @@ describe("TabelaClientes", () => {
     expect(html).toContain("1.500,00");
     expect(html).toContain('aria-label="Editar Ana Souza"');
     expect(html).toContain('aria-label="Excluir Ana Souza"');
+  });
+});
+
+describe("links estilizados como botao", () => {
+  it("Anterior/Proxima sao links simples, sem role=button", () => {
+    const html = renderToStaticMarkup(
+      createElement(Paginacao, { pagina: 2, totalPaginas: 3, busca: "", status: undefined }),
+    );
+    expect(html).toContain('<a ');
+    expect(html).not.toContain('role="button"');
+    expect(html).toMatch(/<a [^>]*href="\/clientes"[^>]*>Anterior<\/a>/);
+    expect(html).toMatch(/<a [^>]*href="\/clientes\?pagina=3"[^>]*>Próxima<\/a>/);
+  });
+
+  it("Limpar filtros e link simples, sem role=button", () => {
+    const html = renderToStaticMarkup(
+      createElement(FiltrosClientes, { busca: "ana", status: undefined }),
+    );
+    expect(html).toMatch(/<a [^>]*href="\/clientes"[^>]*>Limpar filtros<\/a>/);
+    expect(html).not.toContain('role="button"');
   });
 });
 
@@ -129,6 +150,14 @@ describe("ConteudoClientes (pagina /clientes)", () => {
     expect(html).toContain("Nenhum resultado para esta busca");
     expect(html).not.toContain("Adicionar primeiro cliente");
     expect(html).toContain('value="zzz"');
+  });
+
+  it("com uma unica pagina nao mostra a navegacao de paginacao", async () => {
+    listarClientes.mockResolvedValue({ itens: [cliente()], total: 20, pagina: 1, totalPaginas: 1 });
+    const html = await renderizar();
+    expect(html).toContain("Ana Souza");
+    expect(html).not.toContain("Paginação");
+    expect(html).not.toContain("Página 1 de");
   });
 
   it("com clientes mostra tabela e paginacao e repassa parametros tolerantes ao repositorio", async () => {

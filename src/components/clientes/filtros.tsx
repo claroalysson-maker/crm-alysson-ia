@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROTULO_STATUS } from "@/lib/clientes/formato";
@@ -43,9 +43,9 @@ export function FiltrosClientes({
       </div>
       <Button type="submit">Buscar</Button>
       {filtrando && (
-        <Button variant="ghost" nativeButton={false} render={<Link href="/clientes" />}>
+        <Link href="/clientes" className={buttonVariants({ variant: "ghost" })}>
           Limpar filtros
-        </Button>
+        </Link>
       )}
     </form>
   );

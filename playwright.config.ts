@@ -14,14 +14,16 @@ export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: false,
   workers: 1,
+  forbidOnly: true,
   retries: 0,
+  expect: { timeout: 10_000 },
   reporter: "list",
   globalSetup: "./tests/e2e/setup.ts",
   globalTeardown: "./tests/e2e/teardown.ts",
   use: {
     baseURL: URL_BASE,
     locale: "pt-BR",
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {

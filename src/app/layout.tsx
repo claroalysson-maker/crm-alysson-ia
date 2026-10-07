@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "CRM",
+  title: { default: "CRM", template: "%s | CRM" },
   description: "CRM para gestão de clientes",
 };
 

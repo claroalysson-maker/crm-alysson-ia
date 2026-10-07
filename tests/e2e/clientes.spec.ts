@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { ARQUIVO_SESSAO } from "./credenciais";
-import { cartao, esperarValor, limparClientes, semearClientes } from "./apoio";
+import { esperarValor, limparClientes, semearClientes } from "./apoio";
 
 test.use({ storageState: ARQUIVO_SESSAO });
 test.beforeEach(limparClientes);
@@ -32,6 +32,19 @@ test("cria um cliente e o ve na lista e nos indicadores", async ({ page }) => {
   await esperarValor(page, "Valor em negociação", "R$ 1.500,00");
 });
 
+test("aceita valor com virgula decimal (1500,50) e exibe em reais", async ({ page }) => {
+  await page.goto("/clientes");
+  await page.getByRole("button", { name: "Adicionar primeiro cliente" }).click();
+
+  const painel = page.getByRole("dialog", { name: "Novo cliente" });
+  await painel.getByLabel("Nome").fill("Carlos Dias");
+  await painel.getByLabel("Valor estimado (R$)").fill("1500,50");
+  await painel.getByRole("button", { name: "Salvar" }).click();
+  await expect(painel).toBeHidden();
+
+  await expect(linha(page, "Carlos Dias")).toContainText(/R\$\s1\.500,50/);
+});
+
 test("edita um cliente com o formulario preenchido e reflete no dashboard", async ({ page }) => {
   await semearClientes([{ nome: "Joao Lima", status: "lead", valor_estimado: 800 }]);
   await page.goto("/clientes");
@@ -54,7 +67,7 @@ test("edita um cliente com o formulario preenchido e reflete no dashboard", asyn
   await page.getByRole("link", { name: "Dashboard" }).click();
   await esperarValor(page, "Total de leads", "0");
   await esperarValor(page, "Total de clientes", "1");
-  await expect(cartao(page, "Taxa de conversão")).toContainText(/\d+(,\d+)?\s?%/);
+  await esperarValor(page, "Taxa de conversão", "100%");
 });
 
 test("exclui um cliente so apos confirmar no dialogo", async ({ page }) => {

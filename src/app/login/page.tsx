@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { erroDaUrl } from "@/lib/login";
@@ -11,6 +12,8 @@ async function FormularioComErroDaUrl({
   const { erro } = await searchParams;
   return <FormularioLogin erroInicial={erroDaUrl(erro)} />;
 }
+
+export const metadata: Metadata = { title: "Entrar" };
 
 export default function PaginaLogin({ searchParams }: PageProps<"/login">) {
   return (

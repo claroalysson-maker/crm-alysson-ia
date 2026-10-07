@@ -74,12 +74,14 @@ export async function ConteudoClientes({
           <div className="overflow-x-auto rounded-xl border border-border">
             <TabelaClientes clientes={lista.itens} />
           </div>
-          <Paginacao
-            pagina={lista.pagina}
-            totalPaginas={lista.totalPaginas}
-            busca={params.busca}
-            status={params.status}
-          />
+          {lista.totalPaginas > 1 && (
+            <Paginacao
+              pagina={lista.pagina}
+              totalPaginas={lista.totalPaginas}
+              busca={params.busca}
+              status={params.status}
+            />
+          )}
         </>
       )}
     </>
