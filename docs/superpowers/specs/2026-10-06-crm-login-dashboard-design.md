@@ -73,7 +73,7 @@ O dono do sistema cria a empresa, o usuário e o perfil diretamente pelo painel 
 
 ## 6. Dashboard
 
-Os indicadores são calculados a partir da tabela `clientes`, sempre sobre todos os clientes da empresa, sem truncar. A agregação é sempre feita no banco (função SQL com `security invoker`, que respeita a RLS), nunca buscando todas as linhas pela API, pois o PostgREST limita a resposta a 1000 linhas por padrão. As semanas começam na segunda-feira, em UTC. "Novos leads por semana" conta todo cliente criado na semana, qualquer que seja o status atual.
+Os indicadores são calculados a partir da tabela `clientes`, sempre sobre todos os clientes da empresa, sem truncar. A agregação é sempre feita no banco (função SQL com `security invoker`, que respeita a RLS), nunca buscando todas as linhas pela API, pois o PostgREST limita a resposta a 1000 linhas por padrão. As semanas começam na segunda-feira, em UTC; as "últimas 8 semanas" incluem a semana corrente (parcial). Valores monetários são exibidos em reais (R$), no formato pt-BR. "Novos leads por semana" conta todo cliente criado na semana, qualquer que seja o status atual.
 
 **Cartões**
 - Total de leads.
@@ -111,6 +111,7 @@ Os indicadores são calculados a partir da tabela `clientes`, sempre sobre todos
 
 - **Unitários:** cálculo dos indicadores e validação dos formulários.
 - **Integração:** regras de RLS, provando que um usuário da empresa A não lê nem altera dados da empresa B.
-- **E2E (Playwright):** login com sucesso e com falha, redirecionamento sem sessão, criar um cliente e vê-lo na lista e nos indicadores.
-- Cobertura mínima: 80%.
+- **E2E (Playwright):** login com sucesso e com falha, redirecionamento sem sessão, sessão expirada voltando ao login, criar um cliente e vê-lo na lista e nos indicadores, e o botão Sair encerrando a sessão.
+- Cobertura mínima: 80%, medida sobre o código do app (`src/`), excluindo apenas componentes gerados pelo shadcn e arquivos de configuração.
+- A trava dos testes de integração compara a URL do Supabase com a variável `TEST_SUPABASE_PROJECT_REF` e só evita erro acidental; o projeto de testes deve ser um projeto Supabase de desenvolvimento dedicado, nunca o de produção.
 - O desenvolvimento segue TDD: teste primeiro.

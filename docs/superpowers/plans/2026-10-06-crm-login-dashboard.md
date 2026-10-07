@@ -26,8 +26,8 @@
 ## Review Focus
 
 1. Usuário autenticado sem linha em `perfis` (sem empresa): deve voltar ao login com erro claro, sem quebrar a página. Testado na Task 3.
-2. Busca com `%`, `_`, `,`, `(` ou `)` no termo: deve ser tratada como texto literal, sem quebrar o filtro nem retornar tudo. Testado na Task 5.
-3. Página pedida além da última (`?page=999`) ou inválida (`?page=abc`): deve mostrar a última página ou a primeira, sem erro. Testado na Task 5.
+2. Busca com `%`, `_`, `,`, `(` ou `)` no termo: deve ser tratada como texto literal, sem quebrar o filtro nem retornar tudo. Testado na Task 4.
+3. Página pedida além da última (`?page=999`) ou inválida (`?page=abc`): deve mostrar a última página ou a primeira, sem erro. Testado na Task 4 (repositório) e coberto na tela da Task 5.
 4. Indicadores com zero clientes e zero leads, ou só `perdido`: taxa de conversão 0% e sem divisão por zero. Testado na Task 6.
 5. `valor_estimado` vazio, negativo ou com mais de duas casas decimais: vazio vira 0, negativo é rejeitado, ambos com mensagem clara. Testado na Task 4.
 
@@ -160,7 +160,7 @@ tests/{unit,integration,e2e}/
 - Consumes: `obterSessao` (Task 3); `clienteSchema`, `listarClientes`, `criarCliente`, `atualizarCliente`, `excluirCliente` (Task 4).
 - Produces: server actions `salvarCliente(prev: EstadoForm, form: FormData): Promise<EstadoForm>` e `removerCliente(id: string): Promise<void>`, com `EstadoForm = { ok?: true; erros?: Record<string, string> }`; layout `(app)` que exige sessão, mostra menu lateral (Dashboard, Clientes) e botão Sair.
 
-- [ ] **Step 1: Escrever os testes que falham** para `salvarCliente` (com o repositório simulado): dados inválidos devolvem `erros` por campo e não chamam o repositório; dados válidos sem `id` chamam `criarCliente`; com `id` chamam `atualizarCliente`; falha do repositório devolve erro amigável genérico e registra o detalhe no log do servidor.
+- [ ] **Step 1: Escrever os testes que falham** para `salvarCliente` (com o repositório simulado): dados inválidos devolvem `erros` por campo e não chamam o repositório; dados válidos sem `id` chamam `criarCliente`; com `id` chamam `atualizarCliente`; falha do repositório devolve erro amigável genérico e registra o detalhe no log do servidor; `removerCliente` com falha do repositório devolve erro amigável (não lança para o usuário) e registra o detalhe; a página `/clientes` mostra mensagem amigável quando `listarClientes` falha (spec §9), com teste; a action de Sair chama `signOut` e redireciona para `/login`, com teste unitário.
 - [ ] **Step 2:** Rodar `npx vitest run tests/unit/clientes-actions.test.ts`. Esperado: FAIL.
 - [ ] **Step 3:** Implementar as server actions, validando de novo com `clienteSchema` no servidor.
 - [ ] **Step 4:** Construir o layout `(app)` com menu lateral responsivo (vira menu recolhido no celular) e botão Sair, que encerra a sessão e volta ao login.
@@ -209,8 +209,13 @@ tests/{unit,integration,e2e}/
   - login válido leva ao `/dashboard` com estado vazio;
   - criar um cliente com status `lead` e valor `1500` o mostra em `/clientes`, e o cartão "Total de leads" do dashboard passa a `1` e "Valor em negociação" a `R$ 1.500,00`;
   - Sair encerra a sessão e `/dashboard` volta a redirecionar.
+- [ ] **Step 1b: Fechar pendências de reforço registradas nas revisões** (antes dos E2E):
+  - completar a simetria dos testes de isolamento em `tests/integration/rls.test.ts` com um bloco `it.each` sobre as duas empresas `[a, b]`: inserir com `empresa_id` alheio, mover o próprio cliente para a outra empresa, ler cliente pelo `id` do outro, ler `perfis` e `empresas` da outra empresa; e provar que o anônimo não executa `empresa_id_atual()` via RPC;
+  - no proxy (`src/lib/proxy/processar-requisicao.ts`, `src/lib/supabase/session.ts`): erros 4xx do Auth (JWT de usuário apagado, refresh token inválido) devem limpar a sessão com `signOut({ scope: "local" })` e redirecionar para `/login`; só 5xx e falhas de rede seguem o caminho de falha fechada sem limpar; o mesmo erro não é registrado duas vezes; testes unitários para cada ramo, incluindo `getUser` lançando erro que não seja "session missing" e sessão válida em `/login` indo para `/dashboard`;
+  - `vitest.config.ts`: ampliar `coverage.include` para `src/**` (excluindo `src/components/ui/**` gerado pelo shadcn e arquivos de configuração) e definir `thresholds` de 80% para linhas, funções e ramos, para o número da spec medir o app e não só `src/lib`;
+  - registrar em `.env.example` a variável `TEST_SUPABASE_PROJECT_REF` (valor vazio) e, em `README.md`, que a trava compara a URL com a variável e só evita erro acidental: o projeto de testes deve ser um projeto Supabase de desenvolvimento dedicado, nunca o de produção.
 - [ ] **Step 2:** Rodar `npx playwright test`. Esperado: PASS.
-- [ ] **Step 3:** Rodar `npx vitest run --coverage`. Esperado: cobertura ≥ 80%.
+- [ ] **Step 3:** Rodar `npx vitest run --coverage`. Esperado: cobertura ≥ 80% (agora medida sobre `src/**`).
 - [ ] **Step 4:** Rodar `npm run build` e `npm run lint`. Esperado: sem erros.
 - [ ] **Step 5:** Revisão de segurança: confirmar que a chave de serviço aparece só em `tests/` e que nenhum arquivo em `src/` a importa.
 - [ ] **Step 6:** Configurar o projeto na Vercel com as duas variáveis públicas do Supabase e confirmar o login em produção com um usuário criado pelo painel do Supabase.
