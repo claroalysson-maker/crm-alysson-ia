@@ -5,14 +5,19 @@ import type { Indicadores } from "@/lib/indicadores";
 
 const TITULO = "Novos leads por semana";
 
-/** "2026-10-05" vira "05/10". */
-function rotuloSemana(semanaInicio: string): string {
-  const [, mes, dia] = semanaInicio.split("-");
-  return `${dia}/${mes}`;
+/**
+ * "2026-10-05" vira "05/10"; se as semanas cruzam a virada do ano, inclui o ano
+ * ("29/12/25", "05/01/26") para o eixo nao ficar ambiguo.
+ */
+export function rotulosDasSemanas(semanas: Indicadores["leadsPorSemana"]): string[] {
+  const partes = semanas.map((s) => s.semanaInicio.split("-"));
+  const cruzaAno = new Set(partes.map(([ano]) => ano)).size > 1;
+  return partes.map(([ano, mes, dia]) => (cruzaAno ? `${dia}/${mes}/${ano.slice(2)}` : `${dia}/${mes}`));
 }
 
 export function GraficoSemanas({ semanas }: { semanas: Indicadores["leadsPorSemana"] }) {
-  const dados = semanas.map((s) => ({ semana: rotuloSemana(s.semanaInicio), total: s.total }));
+  const rotulos = rotulosDasSemanas(semanas);
+  const dados = semanas.map((s, i) => ({ semana: rotulos[i], total: s.total }));
   const descricao = `${TITULO}: ${dados.map((d) => `semana de ${d.semana}, ${d.total}`).join("; ")}.`;
 
   return (
@@ -23,7 +28,11 @@ export function GraficoSemanas({ semanas }: { semanas: Indicadores["leadsPorSema
           <BarChart data={dados} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
             <CartesianGrid stroke="var(--border)" vertical={false} />
             <XAxis dataKey="semana" tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} />
-            <YAxis allowDecimals={false} tick={{ fill: "var(--muted-foreground)", fontSize: 12 }} />
+            <YAxis
+              allowDecimals={false}
+              domain={[0, (max: number) => Math.max(max, 1)]}
+              tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+            />
             <Tooltip
               cursor={{ fill: "var(--accent)" }}
               contentStyle={{

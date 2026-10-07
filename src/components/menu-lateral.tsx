@@ -6,7 +6,13 @@ import { usePathname } from "next/navigation";
 import { LogOut, Menu } from "lucide-react";
 import { sair } from "@/app/(app)/actions";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 const ITENS = [
@@ -72,6 +78,7 @@ export function MenuLateral() {
           <SheetContent side="left" className="justify-between p-4">
             <div className="flex flex-col gap-6">
               <SheetTitle>CRM</SheetTitle>
+              <SheetDescription className="sr-only">Navegação principal</SheetDescription>
               <Navegacao aoNavegar={() => setAberto(false)} />
             </div>
             <BotaoSair />

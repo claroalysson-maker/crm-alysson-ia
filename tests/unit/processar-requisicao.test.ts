@@ -7,6 +7,8 @@ type Opcoes = {
   usuario?: { id: string } | null;
   perfil?: { data: unknown; error: unknown };
   erroSignOut?: { message: string } | null;
+  erroGetUser?: { name: string; message: string; status?: number };
+  getUserLanca?: Error;
 };
 
 const COOKIE_RENOVADO = { name: "sb-token", value: "renovado", options: { path: "/" } };
@@ -24,6 +26,8 @@ function montar(caminho: string, opcoes: Opcoes = {}) {
       getUser: vi.fn(async () => {
         // Simula a renovacao do token feita pelo supabase/ssr durante getUser.
         adaptador.setAll([COOKIE_RENOVADO], CABECALHOS_RENOVADOS);
+        if (opcoes.getUserLanca) throw opcoes.getUserLanca;
+        if (opcoes.erroGetUser) return { data: { user: null }, error: opcoes.erroGetUser };
         return usuario
           ? { data: { user: usuario }, error: null }
           : { data: { user: null }, error: { name: "AuthSessionMissingError", message: "x" } };
@@ -109,5 +113,92 @@ describe("processarRequisicao", () => {
     const { executar } = montar("/clientes", { usuario: null });
     const resposta = await executar();
     expect(new URL(resposta.headers.get("location")!).pathname).toBe("/login");
+  });
+
+  it("sessao valida em /login redireciona para /dashboard", async () => {
+    const { executar } = montar("/login");
+    const resposta = await executar();
+    expect(resposta.status).toBe(307);
+    expect(new URL(resposta.headers.get("location")!).pathname).toBe("/dashboard");
+    expect(resposta.cookies.get("sb-token")?.value).toBe("renovado");
+  });
+
+  describe("falhas de autenticacao em getUser", () => {
+    const localDe = (resposta: Response) => {
+      const url = new URL(resposta.headers.get("location")!);
+      return url.pathname + url.search;
+    };
+    const erro401 = { name: "AuthApiError", message: "invalid JWT", status: 401 };
+
+    it.each([
+      ["JWT de usuario removido", { name: "AuthApiError", message: "User from sub claim in JWT does not exist", status: 403 }],
+      ["refresh token invalido", { name: "AuthApiError", message: "Invalid Refresh Token", status: 400 }],
+      ["token nao autorizado", erro401],
+    ])("4xx (%s): signOut local, cookies e headers limpos, redireciona para /login", async (_nome, erroGetUser) => {
+      const { executar, signOut } = montar("/dashboard", { erroGetUser });
+      const resposta = await executar();
+      expect(signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
+      expect(resposta.status).toBe(307);
+      expect(localDe(resposta)).toBe("/login");
+      expect(resposta.cookies.get("sb-token")?.value).toBe("");
+      expect(resposta.headers.get("cache-control")).toBe("no-store");
+    });
+
+    it("4xx ja em /login: limpa a sessao e nao redireciona (evita loop)", async () => {
+      const { executar, signOut } = montar("/login", { erroGetUser: erro401 });
+      const resposta = await executar();
+      expect(signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
+      expect(resposta.headers.get("location")).toBeNull();
+    });
+
+    it("4xx com signOut falhando: registra o erro e ainda redireciona", async () => {
+      const { executar } = montar("/clientes", { erroGetUser: erro401, erroSignOut: { message: "falhou" } });
+      const resposta = await executar();
+      expect(resposta.status).toBe(307);
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining("sessao invalida"), "falhou");
+    });
+
+    it("429 (limite de taxa) e transitorio: nao desloga", async () => {
+      const { executar, signOut } = montar("/dashboard", {
+        erroGetUser: { name: "AuthApiError", message: "rate limit", status: 429 },
+      });
+      const resposta = await executar();
+      expect(signOut).not.toHaveBeenCalled();
+      expect(localDe(resposta)).toBe("/login");
+    });
+
+    it("5xx: falha fechada, redireciona para /login sem deslogar e registra uma vez", async () => {
+      const { executar, signOut } = montar("/dashboard", {
+        erroGetUser: { name: "AuthRetryableFetchError", message: "indisponivel", status: 503 },
+      });
+      const resposta = await executar();
+      expect(signOut).not.toHaveBeenCalled();
+      expect(localDe(resposta)).toBe("/login");
+      expect(console.error).toHaveBeenCalledTimes(1);
+    });
+
+    it("erro de rede sem status: nao desloga", async () => {
+      const { executar, signOut } = montar("/dashboard", {
+        erroGetUser: { name: "AuthRetryableFetchError", message: "fetch failed" },
+      });
+      const resposta = await executar();
+      expect(signOut).not.toHaveBeenCalled();
+      expect(localDe(resposta)).toBe("/login");
+    });
+
+    it("getUser lancando excecao inesperada: falha fechada, sem signOut, registrado uma vez", async () => {
+      const { executar, signOut } = montar("/dashboard", { getUserLanca: new Error("explodiu") });
+      const resposta = await executar();
+      expect(signOut).not.toHaveBeenCalled();
+      expect(localDe(resposta)).toBe("/login");
+      expect(console.error).toHaveBeenCalledTimes(1);
+      expect(console.error).toHaveBeenCalledWith(expect.any(String), "explodiu");
+    });
+
+    it("erro na consulta de perfis e registrado uma unica vez", async () => {
+      const { executar } = montar("/dashboard", { perfil: { data: null, error: { message: "boom" } } });
+      await executar();
+      expect(console.error).toHaveBeenCalledTimes(1);
+    });
   });
 });

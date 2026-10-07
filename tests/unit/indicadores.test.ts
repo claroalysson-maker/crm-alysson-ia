@@ -98,6 +98,10 @@ describe("formatarPercentual", () => {
     [0.25, "25%"],
     [0, "0%"],
     [1, "100%"],
+    [1.5, "100%"],
+    [0.995, "99%"],
+    [0.999, "99%"],
+    [0.99, "99%"],
     [0.3333, "33%"],
     [0.005, "1%"],
     [Number.NaN, "0%"],
@@ -129,10 +133,26 @@ describe("buscarIndicadores", () => {
     expect((await buscarIndicadores(db, AGORA)).valorEmNegociacao).toBe(12.5);
   });
 
+  it.each([["0"], ["0.00"], ["1500"]])("aceita a string decimal %s", async (valor) => {
+    const { db } = dbCom({ data: bruto({ valor_em_negociacao: valor as never }), error: null });
+    expect((await buscarIndicadores(db, AGORA)).valorEmNegociacao).toBe(Number(valor));
+  });
+
+  it.each([[null], [""], [" "], ["abc"], ["1e3"], ["-1"], ["0x10"], [true], [[]], [undefined], [-1]])(
+    "rejeita valor_em_negociacao %j em vez de coagir para 0",
+    async (valor) => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { db } = dbCom({ data: { ...bruto(), valor_em_negociacao: valor }, error: null });
+      await expect(buscarIndicadores(db, AGORA)).rejects.toThrow(/indicadores/i);
+      log.mockRestore();
+    },
+  );
+
   it("lanca erro em portugues e loga o detalhe quando o banco falha", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const { db } = dbCom({ data: null, error: { message: "boom tecnico" } });
     await expect(buscarIndicadores(db, AGORA)).rejects.toThrow(/indicadores/i);
+    expect(log).toHaveBeenCalledTimes(1);
     expect(log).toHaveBeenCalledWith(expect.any(String), "boom tecnico");
     log.mockRestore();
   });

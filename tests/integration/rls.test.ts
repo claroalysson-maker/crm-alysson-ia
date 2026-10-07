@@ -13,6 +13,7 @@ import {
 const sufixo = randomUUID().slice(0, 8);
 const senha = `Senha-${randomUUID()}`;
 const RLS = /row-level security/i;
+const SEM_PERMISSAO = "42501"; // insufficient_privilege (permission denied)
 
 describe("isolamento multi-tenant (RLS)", () => {
   let a: EmpresaComUsuario;
@@ -172,6 +173,67 @@ describe("isolamento multi-tenant (RLS)", () => {
     expect(data).toEqual([{ usuario_id: a.usuarioId }]);
   });
 
+  describe("simetria: cada empresa contra a outra", () => {
+    const direcoes = [
+      ["A", "B"],
+      ["B", "A"],
+    ] as const;
+    const partes = (origem: "A" | "B") => {
+      const [eu, outra, meuClienteId, clienteDaOutraId] =
+        origem === "A" ? [a, b, clienteAId, clienteBId] : [b, a, clienteBId, clienteAId];
+      return { eu, outra, meuClienteId, clienteDaOutraId };
+    };
+
+    it.each(direcoes)("empresa %s nao insere cliente com empresa_id da empresa %s", async (origem) => {
+      const { eu, outra } = partes(origem);
+      const nome = `Intruso ${origem} ${sufixo}`;
+      const { error } = await eu.clienteSupabase
+        .from("clientes").insert({ empresa_id: outra.empresaId, nome });
+      expect(error).not.toBeNull();
+      expect(error!.message).toMatch(RLS);
+
+      const { data } = await clienteServico().from("clientes").select("id").eq("nome", nome);
+      expect(data).toHaveLength(0);
+    });
+
+    it.each(direcoes)("empresa %s nao move cliente proprio para a empresa %s", async (origem) => {
+      const { eu, outra, meuClienteId } = partes(origem);
+      const { error } = await eu.clienteSupabase
+        .from("clientes").update({ empresa_id: outra.empresaId }).eq("id", meuClienteId).select();
+      expect(error).not.toBeNull();
+      expect(error!.message).toMatch(RLS);
+
+      const { data: depois } = await clienteServico()
+        .from("clientes").select("empresa_id").eq("id", meuClienteId).single();
+      expect(depois?.empresa_id).toBe(eu.empresaId);
+    });
+
+    it.each(direcoes)("empresa %s nao le por id o cliente da empresa %s", async (origem) => {
+      const { eu, clienteDaOutraId } = partes(origem);
+      const { data, error } = await eu.clienteSupabase
+        .from("clientes").select("id").eq("id", clienteDaOutraId);
+      expect(error).toBeNull();
+      expect(data).toHaveLength(0);
+    });
+
+    it.each(direcoes)("empresa %s nao le perfis nem empresa da empresa %s", async (origem) => {
+      const { eu, outra } = partes(origem);
+      const { data: perfis, error: erroPerfis } = await eu.clienteSupabase
+        .from("perfis").select("usuario_id").eq("empresa_id", outra.empresaId);
+      expect(erroPerfis).toBeNull();
+      expect(perfis).toHaveLength(0);
+
+      const { data: perfilPorUsuario } = await eu.clienteSupabase
+        .from("perfis").select("usuario_id").eq("usuario_id", outra.usuarioId);
+      expect(perfilPorUsuario).toHaveLength(0);
+
+      const { data: empresas, error: erroEmpresas } = await eu.clienteSupabase
+        .from("empresas").select("id").eq("id", outra.empresaId);
+      expect(erroEmpresas).toBeNull();
+      expect(empresas).toHaveLength(0);
+    });
+  });
+
   describe("perfis e empresas sao somente leitura para usuarios", () => {
     it("usuario A nao consegue alterar o proprio papel", async () => {
       const { data } = await a.clienteSupabase
@@ -244,6 +306,13 @@ describe("isolamento multi-tenant (RLS)", () => {
       const { data } = await clienteAnonimo().from(tabela).select("*");
       // Com ou sem erro de permissao (depende dos grants), nenhuma linha pode vazar.
       expect(data ?? []).toHaveLength(0);
+    });
+
+    it("nao executa empresa_id_atual() via rpc (permissao negada)", async () => {
+      const { data, error } = await clienteAnonimo().rpc("empresa_id_atual");
+      expect(data).toBeNull();
+      expect(error?.code).toBe(SEM_PERMISSAO);
+      expect(error?.message).toMatch(/permission denied/i);
     });
 
     it("nao insere em clientes", async () => {

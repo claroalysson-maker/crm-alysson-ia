@@ -14,6 +14,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { confirmarExclusao, podeAlterarAbertura } from "@/lib/clientes/exclusao";
 
 export function BotaoExcluir({ id, nome }: { id: string; nome: string }) {
   const [aberto, setAberto] = useState(false);
@@ -22,7 +23,7 @@ export function BotaoExcluir({ id, nome }: { id: string; nome: string }) {
 
   function confirmar() {
     iniciar(async () => {
-      const resultado = await removerCliente(id);
+      const resultado = await confirmarExclusao(removerCliente, id);
       if (resultado.erro) setErro(resultado.erro);
       else setAberto(false);
     });
@@ -32,6 +33,7 @@ export function BotaoExcluir({ id, nome }: { id: string; nome: string }) {
     <AlertDialog
       open={aberto}
       onOpenChange={(novo) => {
+        if (!podeAlterarAbertura(novo, pendente)) return;
         setAberto(novo);
         if (novo) setErro(undefined);
       }}

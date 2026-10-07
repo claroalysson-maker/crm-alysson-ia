@@ -15,6 +15,7 @@ const sufixo = randomUUID().slice(0, 8);
 const senha = `Senha-${randomUUID()}`;
 const AGORA = new Date("2026-10-07T15:00:00Z"); // semana atual: 2026-10-05
 const TAMANHO_LOTE = 500;
+const SEM_PERMISSAO = "42501"; // insufficient_privilege (permission denied)
 
 type Semente = {
   empresa_id: string;
@@ -70,6 +71,12 @@ describe("indicadores_empresa", () => {
       ...lote(a.empresaId, 1, "lead", 0, "2026-10-05T00:00:00Z"),
       // Fora da janela de 8 semanas: conta nos totais, não no gráfico.
       ...lote(a.empresaId, 1, "cliente", 0, "2026-07-01T12:00:00Z"),
+      // Bordas da janela (8 semanas: 2026-08-17 .. 2026-10-05): a semana mais antiga incluída
+      // (segunda 00:00:00Z) e o último instante da semana anterior (domingo 23:59:59Z).
+      ...lote(a.empresaId, 1, "lead", 0, "2026-08-17T00:00:00Z"),
+      ...lote(a.empresaId, 1, "lead", 0, "2026-08-16T23:59:59Z"),
+      // Semana seguinte à atual: fora do gráfico, mas conta nos totais.
+      ...lote(a.empresaId, 1, "lead", 0, "2026-10-13T12:00:00Z"),
       // Empresa B: não pode aparecer em A.
       ...lote(b.empresaId, 7, "lead", 5000, naSemana),
     ]);
@@ -94,8 +101,8 @@ describe("indicadores_empresa", () => {
 
   it("reporta totais exatos para mais de 1000 clientes, sem truncar", async () => {
     const r = await buscarIndicadores(a.clienteSupabase, AGORA);
-    expect(r.porStatus).toEqual({ lead: 602, cliente: 301, perdido: 150 });
-    expect(r.totalLeads).toBe(602);
+    expect(r.porStatus).toEqual({ lead: 605, cliente: 301, perdido: 150 });
+    expect(r.totalLeads).toBe(605);
     expect(r.totalClientes).toBe(301);
   });
 
@@ -109,7 +116,7 @@ describe("indicadores_empresa", () => {
 
   it("exclui perdido do valor e da taxa", async () => {
     const r = await buscarIndicadores(a.clienteSupabase, AGORA);
-    expect(r.taxaConversao).toBeCloseTo(301 / (602 + 301), 10);
+    expect(r.taxaConversao).toBeCloseTo(301 / (605 + 301), 10);
   });
 
   it("separa domingo 23:59:59 UTC de segunda 00:00:00 UTC em semanas distintas", async () => {
@@ -123,15 +130,33 @@ describe("indicadores_empresa", () => {
   it("cliente com mais de 8 semanas entra nos totais mas não no gráfico", async () => {
     const r = await buscarIndicadores(a.clienteSupabase, AGORA);
     const somaGrafico = r.leadsPorSemana.reduce((acc, s) => acc + s.total, 0);
-    expect(somaGrafico).toBe(1052);
+    expect(somaGrafico).toBe(1053);
     expect(r.totalClientes).toBe(301);
+  });
+
+  it("fixa as bordas da janela: semana mais antiga incluída, semana anterior a ela fora", async () => {
+    const r = await buscarIndicadores(a.clienteSupabase, AGORA);
+    const porSemana = Object.fromEntries(r.leadsPorSemana.map((s) => [s.semanaInicio, s.total]));
+    expect(r.leadsPorSemana[0].semanaInicio).toBe("2026-08-17");
+    expect(porSemana["2026-08-17"]).toBe(1); // segunda 00:00:00Z da semana mais antiga
+    expect(porSemana["2026-08-10"]).toBeUndefined(); // domingo 23:59:59Z anterior não entra
+  });
+
+  it("lead da semana seguinte fica fora do gráfico, mas conta nos totais", async () => {
+    const r = await buscarIndicadores(a.clienteSupabase, AGORA);
+    const semanas = r.leadsPorSemana.map((s) => s.semanaInicio);
+    expect(semanas.at(-1)).toBe("2026-10-05");
+    expect(semanas).not.toContain("2026-10-12");
+    // 600 + 1 (domingo) + 1 (segunda) + 1 (borda antiga) + 1 (semana seguinte) + 1 (anterior à janela)
+    expect(r.totalLeads).toBe(605);
   });
 
   it("anônimo não consegue executar a função", async () => {
     const { error } = await clienteAnonimo().rpc("indicadores_empresa", {
       p_agora: AGORA.toISOString(),
     });
-    expect(error).not.toBeNull();
+    expect(error?.code).toBe(SEM_PERMISSAO);
+    expect(error?.message).toMatch(/permission denied/i);
   });
 
   it("usuário sem perfil recebe zeros (RLS não devolve linhas)", async () => {

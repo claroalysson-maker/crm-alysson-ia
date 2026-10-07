@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CRM
 
-## Getting Started
+CRM multi-empresa (multi-tenant) para gestão de clientes. Cada empresa enxerga apenas os próprios dados: o isolamento é garantido por RLS (Row Level Security) no banco. O app tem login, dashboard com indicadores e cadastro de clientes.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Next.js 16 (App Router) e React 19
+- Supabase (Postgres, Auth e RLS) com `@supabase/ssr`
+- Tailwind CSS 4, shadcn/ui (Base UI) e Recharts
+- Zod para validação
+- Vitest (unitários e integração) e Playwright (E2E)
+
+## Como rodar
+
+1. Instale as dependências: `npm install`
+2. Crie o arquivo `.env.local` com as variáveis públicas do seu projeto Supabase:
+
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=
+   ```
+
+3. Inicie o servidor de desenvolvimento: `npm run dev` (http://localhost:3000)
+
+Para gerar a versão de produção: `npm run build` e `npm start`.
+
+## Testes
+
+- `npm test`: testes unitários (não acessam rede nem banco).
+- `npm run test:coverage`: unitários com cobertura; exige no mínimo 80% (linhas, funções, branches e statements).
+- `npm run test:integration`: testes de integração contra um projeto Supabase real (RLS, repositório, sessão e indicadores).
+- `npm run test:e2e`: testes E2E com Playwright.
+
+Os testes de integração leem o arquivo `.env.test.local` (não versionado), com:
+
+```
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+TEST_SUPABASE_PROJECT_REF=
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`TEST_SUPABASE_PROJECT_REF` é a referência do projeto de testes (o trecho inicial da URL do Supabase). A guarda que compara essa referência com `SUPABASE_URL` apenas evita execuções acidentais, não é uma proteção de segurança. O projeto usado nos testes deve ser um projeto Supabase de desenvolvimento, dedicado a isso, nunca o de produção: os testes criam e removem empresas, usuários e clientes usando a chave service role.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Como o acesso é criado
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Não há cadastro (signup) no app. O dono do sistema cria o acesso manualmente pelo painel do Supabase:
 
-## Learn More
+1. Cria a empresa na tabela `empresas`.
+2. Cria o usuário em Authentication.
+3. Cria o perfil na tabela `perfis`, ligando o usuário à empresa e definindo o papel (`admin` ou `membro`).
 
-To learn more about Next.js, take a look at the following resources:
+Usuários sem perfil são deslogados e não acessam o app.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Migrations
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+O esquema do banco (tabelas, políticas RLS e a função de indicadores) fica em [`supabase/migrations`](supabase/migrations), em ordem numérica. Aplique-as no projeto Supabase antes de usar o app.

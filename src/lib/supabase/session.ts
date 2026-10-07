@@ -9,19 +9,27 @@ export type Sessao = {
 export type EstadoSessao =
   | { tipo: "sem-usuario" }
   | { tipo: "sem-perfil" }
+  | { tipo: "sessao-invalida" }
   | { tipo: "valida"; sessao: Sessao };
+
+/** 4xx de auth (JWT de usuario removido, refresh token invalido) nao melhora ao repetir; 429 e transitorio. */
+function ehErroDeSessaoInvalida(erro: { status?: number }): boolean {
+  const { status } = erro;
+  return status !== undefined && status >= 400 && status < 500 && status !== 429;
+}
 
 /**
  * Valida o token com o Auth (getUser) e busca empresa/papel em `perfis`.
- * Falha em `getUser` (exceto sessao ausente) ou na consulta de `perfis` nao equivale a
- * "sem usuario"/"sem perfil": lanca erro.
+ * Sessao ausente vira "sem-usuario"; 4xx de auth vira "sessao-invalida" (quem chama deve limpar
+ * os cookies). Rede/5xx/429 ou falha na consulta de `perfis` lancam erro com o detalhe, sem
+ * registrar: quem captura registra uma unica vez.
  */
 export async function obterEstadoSessao(db: SupabaseClient): Promise<EstadoSessao> {
   const { data: auth, error: erroAuth } = await db.auth.getUser();
   if (erroAuth && erroAuth.name !== "AuthSessionMissingError") {
+    if (ehErroDeSessaoInvalida(erroAuth)) return { tipo: "sessao-invalida" };
     // Rede/5xx nao equivale a "sem usuario": quem chama falha fechado, sem deslogar.
-    console.error("Falha ao validar usuario:", erroAuth.message);
-    throw new Error("Falha ao validar o usuario");
+    throw new Error(`Falha ao validar o usuario: ${erroAuth.message}`);
   }
   if (erroAuth || !auth.user) return { tipo: "sem-usuario" };
 
@@ -30,10 +38,7 @@ export async function obterEstadoSessao(db: SupabaseClient): Promise<EstadoSessa
     .select("empresa_id, papel")
     .eq("usuario_id", auth.user.id)
     .maybeSingle();
-  if (erroPerfil) {
-    console.error("Falha ao consultar perfis:", erroPerfil.message);
-    throw new Error("Falha ao consultar o perfil do usuario");
-  }
+  if (erroPerfil) throw new Error(`Falha ao consultar o perfil do usuario: ${erroPerfil.message}`);
   if (!perfil) return { tipo: "sem-perfil" };
 
   return {

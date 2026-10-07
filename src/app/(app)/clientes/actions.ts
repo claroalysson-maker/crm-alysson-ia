@@ -8,6 +8,7 @@ import {
   analisarFormulario,
   type EstadoForm,
 } from "@/lib/clientes/formulario";
+import { ERRO_EXCLUIR, type ResultadoRemocao } from "@/lib/clientes/exclusao";
 import {
   atualizarCliente,
   criarCliente,
@@ -15,9 +16,9 @@ import {
 } from "@/lib/clientes/repositorio";
 import { createServerClient } from "@/lib/supabase/server";
 
-export type EstadoRemocao = { ok?: true; erro?: string };
-
-const ERRO_EXCLUIR = "Não foi possível excluir. Tente novamente.";
+// Seguranca entre empresas: a autoridade e o RLS do banco (policies por empresa_id). As acoes
+// usam o cliente Supabase do usuario e nao filtram por empresa; nao ha checagem de tenant aqui.
+export type EstadoRemocao = ResultadoRemocao;
 
 function revalidarTelas(): void {
   revalidatePath("/clientes");

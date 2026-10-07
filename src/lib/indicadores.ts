@@ -6,12 +6,24 @@ export const SEMANAS_NO_GRAFICO = 8;
 const MS_POR_DIA = 24 * 60 * 60 * 1000;
 const MENSAGEM_ERRO = "Não foi possível carregar os indicadores.";
 
+/** Falha ja registrada (com o detalhe tecnico) por `buscarIndicadores`; quem captura nao registra de novo. */
+export class ErroIndicadores extends Error {
+  constructor() {
+    super(MENSAGEM_ERRO);
+    this.name = "ErroIndicadores";
+  }
+}
+
 const contagem = z.number().int().nonnegative();
 
 const brutosSchema = z.object({
   contagens: z.object({ lead: contagem, cliente: contagem, perdido: contagem }),
-  // numeric pode chegar como string em alguns clientes; coerce cobre os dois casos.
-  valor_em_negociacao: z.coerce.number().nonnegative(),
+  // numeric pode chegar como numero JSON ou string decimal simples; null, "" e lixo sao rejeitados
+  // (nada de coagir para 0, que esconderia um payload quebrado).
+  valor_em_negociacao: z.union([
+    z.number().nonnegative(),
+    z.string().regex(/^\d+(\.\d+)?$/).transform(Number),
+  ]),
   leads_por_semana: z.array(
     z.object({
       semana_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -77,22 +89,26 @@ export async function buscarIndicadores(
   const { data, error } = await db.rpc("indicadores_empresa", { p_agora: agora.toISOString() });
   if (error) {
     console.error("Falha ao buscar indicadores:", error.message);
-    throw new Error(MENSAGEM_ERRO);
+    throw new ErroIndicadores();
   }
   const analisado = brutosSchema.safeParse(data);
   if (!analisado.success) {
     console.error("Resposta inesperada dos indicadores:", analisado.error.message);
-    throw new Error(MENSAGEM_ERRO);
+    throw new ErroIndicadores();
   }
   return montarIndicadores(analisado.data, agora);
 }
+
+const MAIOR_FRACAO_ABAIXO_DE_UM = 0.99;
 
 const PERCENTUAL = new Intl.NumberFormat("pt-BR", {
   style: "percent",
   maximumFractionDigits: 0,
 });
 
+/** Abaixo de 100% nunca arredonda para "100%" (0,995 vira "99%"); 100% ou mais vira "100%". */
 export function formatarPercentual(fracao: number): string {
   if (!Number.isFinite(fracao) || fracao < 0) return PERCENTUAL.format(0);
-  return PERCENTUAL.format(fracao);
+  if (fracao >= 1) return PERCENTUAL.format(1);
+  return PERCENTUAL.format(Math.min(fracao, MAIOR_FRACAO_ABAIXO_DE_UM));
 }

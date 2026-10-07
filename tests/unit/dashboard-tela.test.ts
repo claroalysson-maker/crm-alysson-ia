@@ -17,7 +17,9 @@ vi.mock("recharts", async (importOriginal) => ({
 }));
 
 import { ConteudoDashboard } from "@/app/(app)/dashboard/conteudo";
-import { montarIndicadores } from "@/lib/indicadores";
+import { ErroIndicadores, montarIndicadores } from "@/lib/indicadores";
+import { GraficoSemanas, rotulosDasSemanas } from "@/components/dashboard/grafico-semanas";
+import { GraficoStatus } from "@/components/dashboard/grafico-status";
 
 const AGORA = new Date("2026-10-07T15:00:00Z");
 const com = (lead: number, cliente: number, perdido: number, valor: number) =>
@@ -67,5 +69,69 @@ describe("dashboard", () => {
     const html = await renderizar();
     expect(html).toContain('role="alert"');
     expect(html).toContain("Não foi possível carregar os indicadores");
+  });
+
+  it("falha de buscarIndicadores ja registrada pela lib nao e registrada de novo", async () => {
+    buscarIndicadores.mockRejectedValue(new ErroIndicadores());
+    await renderizar();
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it("falha fora de buscarIndicadores (ex.: criar o cliente) e registrada uma vez", async () => {
+    buscarIndicadores.mockRejectedValue(new Error("sem cookies"));
+    await renderizar();
+    expect(console.error).toHaveBeenCalledTimes(1);
+    expect(console.error).toHaveBeenCalledWith(expect.any(String), "sem cookies");
+  });
+});
+
+const rotuloAria = (html: string) => html.match(/role="img" aria-label="([^"]*)"/)?.[1];
+
+describe("gráficos (render estático)", () => {
+  it("gráfico de semanas descreve cada semana no aria-label e na tabela acessível", () => {
+    const semanas = montarIndicadores(
+      {
+        contagens: { lead: 3, cliente: 0, perdido: 0 },
+        valor_em_negociacao: 0,
+        leads_por_semana: [
+          { semana_inicio: "2026-10-05", total: 3 },
+          { semana_inicio: "2026-09-28", total: 1 },
+        ],
+      },
+      AGORA,
+    ).leadsPorSemana;
+    const html = renderToStaticMarkup(createElement(GraficoSemanas, { semanas }));
+    expect(rotuloAria(html)).toBe(
+      "Novos leads por semana: semana de 17/08, 0; semana de 24/08, 0; semana de 31/08, 0; " +
+        "semana de 07/09, 0; semana de 14/09, 0; semana de 21/09, 0; semana de 28/09, 1; semana de 05/10, 3.",
+    );
+    expect(html).toContain('<th scope="row">05/10</th><td>3</td>');
+    expect(html).toContain('<th scope="row">28/09</th><td>1</td>');
+  });
+
+  it("gráfico de status lista rótulo e contagem de cada status na legenda e no aria-label", () => {
+    const html = renderToStaticMarkup(
+      createElement(GraficoStatus, { porStatus: { lead: 5, cliente: 2, perdido: 1 } }),
+    );
+    expect(rotuloAria(html)).toBe("Distribuição por status: Lead 5, Cliente 2, Perdido 1.");
+    expect(html).toMatch(/Lead<\/span><span class="[^"]*">5<\/span>/);
+    expect(html).toMatch(/Cliente<\/span><span class="[^"]*">2<\/span>/);
+    expect(html).toMatch(/Perdido<\/span><span class="[^"]*">1<\/span>/);
+  });
+});
+
+describe("rotulosDasSemanas", () => {
+  const semanas = (...inicios: string[]) => inicios.map((semanaInicio) => ({ semanaInicio, total: 0 }));
+
+  it("usa dia/mês quando todas as semanas são do mesmo ano", () => {
+    expect(rotulosDasSemanas(semanas("2026-09-28", "2026-10-05"))).toEqual(["28/09", "05/10"]);
+  });
+
+  it("inclui o ano quando as semanas cruzam a virada do ano", () => {
+    expect(rotulosDasSemanas(semanas("2025-12-22", "2025-12-29", "2026-01-05"))).toEqual([
+      "22/12/25",
+      "29/12/25",
+      "05/01/26",
+    ]);
   });
 });

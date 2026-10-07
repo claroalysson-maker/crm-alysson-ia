@@ -1,10 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decidirRedirecionamento } from "@/lib/redirecionamento";
-import { obterEstadoSessao } from "@/lib/supabase/session";
+import { obterEstadoSessao, type EstadoSessao } from "@/lib/supabase/session";
 
 const ROTA_LOGIN = "/login";
 const DESTINO_SEM_EMPRESA = "/login?erro=sem-empresa";
+
+// Estados em que a sessao do navegador e inutil e deve ser limpa (signOut local).
+const MOTIVO_DE_LIMPEZA: Partial<Record<EstadoSessao["tipo"], string>> = {
+  "sem-perfil": "sem perfil",
+  "sessao-invalida": "invalida",
+};
 
 type Cookie = { name: string; value: string; options?: Parameters<NextResponse["cookies"]["set"]>[2] };
 
@@ -44,15 +50,17 @@ export async function processarRequisicao(
     // Valida o token no Auth (getUser) e exige perfil: sessao valida = usuario + empresa.
     const estado = await obterEstadoSessao(supabase);
     sessaoValida = estado.tipo === "valida";
-    if (estado.tipo === "sem-perfil") {
+    const motivoDeLimpeza = MOTIVO_DE_LIMPEZA[estado.tipo];
+    if (motivoDeLimpeza) {
       // Em /login nao redireciona: a pagina renderiza e um signOut falho nao gera loop.
-      if (pathname !== ROTA_LOGIN) destinoForcado = DESTINO_SEM_EMPRESA;
+      if (estado.tipo === "sem-perfil" && pathname !== ROTA_LOGIN) destinoForcado = DESTINO_SEM_EMPRESA;
       // signOut local limpa os cookies deste navegador via setAll, sem revogar outras sessoes.
       const { error } = await supabase.auth.signOut({ scope: "local" });
-      if (error) console.error("Falha ao encerrar a sessao sem perfil:", error.message);
+      if (error) console.error(`Falha ao encerrar a sessao ${motivoDeLimpeza}:`, error.message);
     }
   } catch (erro) {
     // Falha fechada: sem sessao valida, e sem deslogar (pode ser falha temporaria).
+    // obterEstadoSessao nao registra; este e o unico log da falha.
     console.error("Falha ao verificar a sessao no proxy:", (erro as Error).message);
   }
 

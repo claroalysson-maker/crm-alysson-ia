@@ -3,7 +3,7 @@ import { CartoesIndicadores } from "@/components/dashboard/cartoes";
 import { EstadoVazioDashboard, ErroNoDashboard } from "@/components/dashboard/estados";
 import { GraficoSemanas } from "@/components/dashboard/grafico-semanas";
 import { GraficoStatus } from "@/components/dashboard/grafico-status";
-import { buscarIndicadores, type Indicadores } from "@/lib/indicadores";
+import { ErroIndicadores, buscarIndicadores, type Indicadores } from "@/lib/indicadores";
 import { createServerClient } from "@/lib/supabase/server";
 
 async function carregar(): Promise<Indicadores | null> {
@@ -12,7 +12,10 @@ async function carregar(): Promise<Indicadores | null> {
   try {
     return await buscarIndicadores(await createServerClient());
   } catch (erro) {
-    console.error("Falha ao carregar o dashboard:", (erro as Error).message);
+    // buscarIndicadores ja registra o detalhe; so registra aqui o que nao passou por ele.
+    if (!(erro instanceof ErroIndicadores)) {
+      console.error("Falha ao carregar o dashboard:", (erro as Error).message);
+    }
     return null;
   }
 }
