@@ -45,7 +45,8 @@ export async function criarEmpresaComUsuario(
       .select("id")
       .single();
     if (erroEmpresa) throw new Error(`Falha ao criar empresa: ${erroEmpresa.message}`);
-    empresaId = empresa.id;
+    const idEmpresa: string = empresa.id;
+    empresaId = idEmpresa;
 
     const { data: criado, error: erroUsuario } = await servico.auth.admin.createUser({
       email,
@@ -55,11 +56,12 @@ export async function criarEmpresaComUsuario(
     if (erroUsuario || !criado.user) {
       throw new Error(`Falha ao criar usuario: ${erroUsuario?.message}`);
     }
-    usuarioId = criado.user.id;
+    const idUsuario: string = criado.user.id;
+    usuarioId = idUsuario;
 
     const { error: erroPerfil } = await servico
       .from("perfis")
-      .insert({ usuario_id: usuarioId, empresa_id: empresaId, papel: "admin" });
+      .insert({ usuario_id: idUsuario, empresa_id: idEmpresa, papel: "admin" });
     if (erroPerfil) throw new Error(`Falha ao criar perfil: ${erroPerfil.message}`);
 
     const clienteSupabase = clienteAnonimo();
@@ -69,7 +71,7 @@ export async function criarEmpresaComUsuario(
     });
     if (erroLogin) throw new Error(`Falha ao autenticar usuario: ${erroLogin.message}`);
 
-    return { empresaId, usuarioId, clienteSupabase };
+    return { empresaId: idEmpresa, usuarioId: idUsuario, clienteSupabase };
   } catch (erro) {
     try {
       await limparRecursos(empresaId, usuarioId);
@@ -110,4 +112,24 @@ export async function limparEmpresaComUsuario(
   { empresaId, usuarioId }: Pick<EmpresaComUsuario, "empresaId" | "usuarioId">,
 ): Promise<void> {
   await limparRecursos(empresaId, usuarioId);
+}
+
+export async function criarUsuarioSemEmpresa(
+  email: string,
+  senha: string,
+): Promise<{ usuarioId: string }> {
+  const { data, error } = await clienteServico().auth.admin.createUser({
+    email,
+    password: senha,
+    email_confirm: true,
+  });
+  if (error || !data.user) {
+    throw new Error(`Falha ao criar usuario sem empresa: ${error?.message}`);
+  }
+  return { usuarioId: data.user.id };
+}
+
+export async function limparUsuario(usuarioId: string): Promise<void> {
+  const { error } = await clienteServico().auth.admin.deleteUser(usuarioId);
+  if (error) throw new Error(`Falha na limpeza de teste: usuario: ${error.message}`);
 }
