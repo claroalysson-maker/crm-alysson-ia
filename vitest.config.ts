@@ -5,7 +5,9 @@ export default defineConfig({
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
   test: {
     environment: "node",
-    include: ["tests/unit/**/*.test.ts"],
+    include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
+    testTimeout: 30000,
+    hookTimeout: 60000,
     coverage: { provider: "v8", include: ["src/lib/**"] },
   },
 });
