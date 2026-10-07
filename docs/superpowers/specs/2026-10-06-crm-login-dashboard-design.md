@@ -1,7 +1,7 @@
 # CRM SaaS: Login e Dashboard (v1) — Design
 
 Data: 2026-10-06
-Status: aguardando revisão
+Status: aprovada (esclarecimentos incorporados em 2026-10-07 após revisão do code-reviewer)
 
 ## 1. Objetivo
 
@@ -31,7 +31,8 @@ Cadastro aberto, recuperação de senha por e-mail, tela para criar empresas e u
 - Um app Next.js hospedado na Vercel.
 - Supabase Auth para login com e-mail e senha.
 - Supabase Postgres para os dados, com RLS ativado em todas as tabelas.
-- A proteção de rotas é feita no servidor (middleware), antes de a página carregar.
+- A proteção de rotas é feita no servidor, antes de a página carregar, no arquivo `proxy.ts` (nome do antigo middleware a partir do Next.js 16). A sessão é verificada com `supabase.auth.getUser()`, nunca só pelo cookie.
+- As variáveis de ambiente obrigatórias são verificadas na inicialização do app.
 - As chaves do Supabase ficam em variáveis de ambiente. A chave de serviço nunca vai para o navegador.
 
 ### Telas
@@ -45,17 +46,26 @@ Cadastro aberto, recuperação de senha por e-mail, tela para criar empresas e u
 ## 5. Modelo de dados
 
 **`empresas`**
-- `id`, `nome`, `criada_em`.
+- `id`, `nome`, `criada_em`. O nome `criada_em` (feminino, concordando com "empresa") é intencional e deve ser mantido; as demais tabelas usam `criado_em`.
 
 **`perfis`**
-- `usuario_id` (referência ao usuário do Supabase Auth), `empresa_id`, `papel` (`admin` ou `membro`).
+- `usuario_id` (referência ao usuário do Supabase Auth), `empresa_id`, `papel` (`admin` ou `membro`), `criado_em`.
+- Cada usuário pertence a exatamente uma empresa (`usuario_id` é a chave primária).
 
 **`clientes`**
 - `id`, `empresa_id`, `nome`, `email`, `telefone`, `empresa_contato`, `status` (`lead`, `cliente` ou `perdido`), `valor_estimado`, `notas`, `criado_em`, `atualizado_em`.
 
 ### Isolamento (RLS)
 
-Em `clientes` e `perfis`, a política permite ler e alterar apenas linhas cujo `empresa_id` seja o da empresa do usuário autenticado, obtida a partir de `perfis`. Inserções também devem gravar o `empresa_id` do próprio usuário. O isolamento vale no banco, independente do código da aplicação.
+Em `clientes`, a política permite ler e alterar apenas linhas cujo `empresa_id` seja o da empresa do usuário autenticado, obtida a partir de `perfis`. Inserções também devem gravar o `empresa_id` do próprio usuário. O isolamento vale no banco, independente do código da aplicação.
+
+Em `perfis`, cada usuário lê apenas a própria linha (decisão da v1: nada na v1 lista colegas de empresa). Em `empresas`, cada usuário lê apenas a empresa à qual pertence. `perfis` e `empresas` são somente leitura pela API: criação e alteração só pelo dono do sistema, com a chave de serviço, fora do app. O usuário anônimo (sem login) não lê nem escreve em nenhuma das três tabelas.
+
+O critério de isolamento é comprovado por testes automatizados que cobrem: leitura e escrita cruzadas nos dois sentidos (A contra B e B contra A), tentativas de escrita em `perfis` e `empresas`, usuário anônimo e usuário autenticado sem perfil. Os testes rodam contra um projeto Supabase de desenvolvimento, nunca contra um projeto real de produção.
+
+### Usuário válido
+
+Um usuário válido tem login no Supabase Auth **e** uma linha em `perfis`. Quem tem login mas não tem perfil é desconectado e vê a mensagem "Sua conta não está vinculada a uma empresa".
 
 ### Criação de acessos
 
@@ -63,13 +73,13 @@ O dono do sistema cria a empresa, o usuário e o perfil diretamente pelo painel 
 
 ## 6. Dashboard
 
-Os indicadores são calculados a partir da tabela `clientes`.
+Os indicadores são calculados a partir da tabela `clientes`, sempre sobre todos os clientes da empresa, sem truncar. O cálculo não pode depender de buscar todas as linhas pela API, pois o PostgREST limita a resposta a 1000 linhas por padrão; com volumes maiores a agregação é feita no banco.
 
 **Cartões**
 - Total de leads.
 - Total de clientes.
-- Taxa de conversão: clientes ÷ (leads + clientes).
-- Valor em negociação: soma de `valor_estimado` dos leads ativos.
+- Taxa de conversão: clientes ÷ (leads + clientes), exibida em porcentagem. Clientes `perdido` não entram na conta.
+- Valor em negociação: soma de `valor_estimado` dos leads ativos. "Lead ativo" é todo cliente com `status = lead`.
 
 **Gráficos**
 - Novos leads por semana, nas últimas 8 semanas.
@@ -79,7 +89,7 @@ Os indicadores são calculados a partir da tabela `clientes`.
 
 ## 7. Clientes e leads
 
-- Tabela com busca por nome ou e-mail e filtro por status.
+- Tabela com busca por nome ou e-mail (parcial, sem diferenciar maiúsculas de minúsculas, tratando `%`, `_`, vírgula e parênteses como texto) e filtro por status. Os leads são gerenciados nesta mesma tela, pelo filtro de status.
 - Formulário em painel lateral para criar e editar.
 - Exclusão com confirmação.
 - Paginação de 20 registros por página.
