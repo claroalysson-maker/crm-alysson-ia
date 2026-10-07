@@ -52,6 +52,16 @@ describe("isolamento multi-tenant (RLS)", () => {
     }
   });
 
+  const direcoes = [
+    ["A", "B"],
+    ["B", "A"],
+  ] as const;
+  const partes = (origem: "A" | "B") => {
+    const [eu, outra, meuClienteId, clienteDaOutraId] =
+      origem === "A" ? [a, b, clienteAId, clienteBId] : [b, a, clienteBId, clienteAId];
+    return { eu, outra, meuClienteId, clienteDaOutraId };
+  };
+
   it("usuario A lista clientes e ve apenas os da empresa A", async () => {
     const { data, error } = await a.clienteSupabase.from("clientes").select("id, empresa_id");
     expect(error).toBeNull();
@@ -174,16 +184,6 @@ describe("isolamento multi-tenant (RLS)", () => {
   });
 
   describe("simetria: cada empresa contra a outra", () => {
-    const direcoes = [
-      ["A", "B"],
-      ["B", "A"],
-    ] as const;
-    const partes = (origem: "A" | "B") => {
-      const [eu, outra, meuClienteId, clienteDaOutraId] =
-        origem === "A" ? [a, b, clienteAId, clienteBId] : [b, a, clienteBId, clienteAId];
-      return { eu, outra, meuClienteId, clienteDaOutraId };
-    };
-
     it.each(direcoes)("empresa %s nao insere cliente com empresa_id da empresa %s", async (origem) => {
       const { eu, outra } = partes(origem);
       const nome = `Intruso ${origem} ${sufixo}`;
@@ -234,54 +234,64 @@ describe("isolamento multi-tenant (RLS)", () => {
     });
   });
 
-  describe("perfis e empresas sao somente leitura para usuarios", () => {
-    it("usuario A nao consegue alterar o proprio papel", async () => {
-      const { data } = await a.clienteSupabase
-        .from("perfis").update({ papel: "membro" }).eq("usuario_id", a.usuarioId).select();
-      expect(data ?? []).toHaveLength(0);
+  describe("perfis e empresas sao somente leitura para usuarios (nas duas direcoes)", () => {
+    const perfilDe = async (usuarioId: string) =>
+      (await clienteServico().from("perfis").select("papel, empresa_id").eq("usuario_id", usuarioId)).data;
 
-      const { data: depois } = await clienteServico()
-        .from("perfis").select("papel, empresa_id").eq("usuario_id", a.usuarioId).single();
-      expect(depois).toEqual({ papel: "admin", empresa_id: a.empresaId });
+    it.each(direcoes)("empresa %s nao altera o proprio papel nem o da empresa %s", async (origem) => {
+      const { eu, outra } = partes(origem);
+      for (const alvo of [eu, outra]) {
+        const { data } = await eu.clienteSupabase
+          .from("perfis").update({ papel: "membro" }).eq("usuario_id", alvo.usuarioId).select();
+        expect(data ?? []).toHaveLength(0);
+        expect(await perfilDe(alvo.usuarioId)).toEqual([{ papel: "admin", empresa_id: alvo.empresaId }]);
+      }
     });
 
-    it("usuario A nao consegue mover o proprio perfil para a empresa B", async () => {
-      const { data } = await a.clienteSupabase
-        .from("perfis").update({ empresa_id: b.empresaId }).eq("usuario_id", a.usuarioId).select();
-      expect(data ?? []).toHaveLength(0);
-
-      const { data: depois } = await clienteServico()
-        .from("perfis").select("empresa_id").eq("usuario_id", a.usuarioId).single();
-      expect(depois?.empresa_id).toBe(a.empresaId);
+    it.each(direcoes)("empresa %s nao move perfis (proprio ou da %s) entre empresas", async (origem) => {
+      const { eu, outra } = partes(origem);
+      const destinos = [
+        [eu, outra.empresaId],
+        [outra, eu.empresaId],
+      ] as const;
+      for (const [alvo, empresaDestino] of destinos) {
+        const { data } = await eu.clienteSupabase
+          .from("perfis").update({ empresa_id: empresaDestino }).eq("usuario_id", alvo.usuarioId).select();
+        expect(data ?? []).toHaveLength(0);
+        expect(await perfilDe(alvo.usuarioId)).toEqual([{ papel: "admin", empresa_id: alvo.empresaId }]);
+      }
     });
 
-    it("usuario A nao consegue inserir perfil", async () => {
-      const { error } = await a.clienteSupabase
-        .from("perfis")
-        .insert({ usuario_id: semEmpresaId, empresa_id: a.empresaId, papel: "admin" });
-      expect(error).not.toBeNull();
+    it.each(direcoes)("empresa %s nao insere perfil na propria nem na empresa %s", async (origem) => {
+      const { eu, outra } = partes(origem);
+      for (const empresaId of [eu.empresaId, outra.empresaId]) {
+        const { error } = await eu.clienteSupabase
+          .from("perfis").insert({ usuario_id: semEmpresaId, empresa_id: empresaId, papel: "admin" });
+        expect(error).not.toBeNull();
 
-      const { data } = await clienteServico()
-        .from("perfis").select("usuario_id").eq("usuario_id", semEmpresaId!);
-      expect(data).toHaveLength(0);
+        const { data } = await clienteServico()
+          .from("perfis").select("usuario_id").eq("usuario_id", semEmpresaId!);
+        expect(data).toHaveLength(0);
+      }
     });
 
-    it("usuario A nao consegue apagar o proprio perfil", async () => {
-      const { data } = await a.clienteSupabase
-        .from("perfis").delete().eq("usuario_id", a.usuarioId).select();
-      expect(data ?? []).toHaveLength(0);
-
-      const { data: depois } = await clienteServico()
-        .from("perfis").select("usuario_id").eq("usuario_id", a.usuarioId);
-      expect(depois).toHaveLength(1);
+    it.each(direcoes)("empresa %s nao apaga perfis (proprio ou da %s)", async (origem) => {
+      const { eu, outra } = partes(origem);
+      for (const alvo of [eu, outra]) {
+        const { data } = await eu.clienteSupabase
+          .from("perfis").delete().eq("usuario_id", alvo.usuarioId).select();
+        expect(data ?? []).toHaveLength(0);
+        expect(await perfilDe(alvo.usuarioId)).toHaveLength(1);
+      }
     });
 
-    it("usuario A nao consegue atualizar nem apagar empresas (propria ou da B)", async () => {
+    it.each(direcoes)("empresa %s nao atualiza nem apaga empresas (propria ou da %s)", async (origem) => {
+      const { eu } = partes(origem);
       for (const id of [a.empresaId, b.empresaId]) {
-        const { data: atualizada } = await a.clienteSupabase
+        const { data: atualizada } = await eu.clienteSupabase
           .from("empresas").update({ nome: "Renomeada" }).eq("id", id).select();
         expect(atualizada ?? []).toHaveLength(0);
-        const { data: apagada } = await a.clienteSupabase
+        const { data: apagada } = await eu.clienteSupabase
           .from("empresas").delete().eq("id", id).select();
         expect(apagada ?? []).toHaveLength(0);
       }
@@ -291,9 +301,10 @@ describe("isolamento multi-tenant (RLS)", () => {
       expect(data!.map((e) => e.nome).sort()).toEqual(["Empresa A", "Empresa B"]);
     });
 
-    it("usuario A nao consegue inserir empresa", async () => {
-      const nome = `Intrusa ${sufixo}`;
-      const { error } = await a.clienteSupabase.from("empresas").insert({ nome });
+    it.each(direcoes)("empresa %s nao insere empresa", async (origem) => {
+      const { eu } = partes(origem);
+      const nome = `Intrusa ${origem} ${sufixo}`;
+      const { error } = await eu.clienteSupabase.from("empresas").insert({ nome });
       expect(error).not.toBeNull();
 
       const { data } = await clienteServico().from("empresas").select("id").eq("nome", nome);

@@ -89,7 +89,7 @@ Os indicadores são calculados a partir da tabela `clientes`, sempre sobre todos
 
 ## 7. Clientes e leads
 
-- Tabela com busca por nome ou e-mail (parcial, sem diferenciar maiúsculas de minúsculas, tratando `%`, `_`, vírgula e parênteses como texto) e filtro por status. Os leads são gerenciados nesta mesma tela, pelo filtro de status.
+- Tabela com busca por nome ou e-mail (parcial, sem diferenciar maiúsculas de minúsculas, tratando `%`, `_`, vírgula e parênteses como texto) e filtro por status. Os leads são gerenciados nesta mesma tela, pelo filtro de status. Limitação conhecida: o PostgREST converte `*` em `%` nos valores de `ilike` e não oferece escape, então o asterisco é tratado como um caractere qualquer (`_`): uma busca só por `*` retorna todos os nomes da própria empresa, e `a*b` também encontra `axb`. Isso nunca atravessa empresas, porque a RLS continua valendo.
 - Formulário em painel lateral para criar e editar.
 - Exclusão com confirmação.
 - Paginação de 20 registros por página.
