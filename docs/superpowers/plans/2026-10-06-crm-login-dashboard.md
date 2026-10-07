@@ -133,14 +133,15 @@ tests/{unit,integration,e2e}/
   - `type ClienteInput = z.infer<typeof clienteSchema>` e `type Cliente = ClienteInput & { id: string; empresa_id: string; criado_em: string; atualizado_em: string }`
   - `escaparTermoBusca(termo: string): string` em `busca.ts` (Task 5 usa)
   - `type ListaClientes = { itens: Cliente[]; total: number; pagina: number; totalPaginas: number }`
-  - `listarClientes(params: { busca?: string; status?: Status; pagina?: number }): Promise<ListaClientes>`
-  - `criarCliente(input: ClienteInput): Promise<Cliente>`, `atualizarCliente(id: string, input: ClienteInput): Promise<Cliente>`, `excluirCliente(id: string): Promise<void>`
+  - O acesso ao banco é injetado (decisão do controlador, para testar fora do Next): `listarClientes(db: SupabaseClient, params: { busca?: string; status?: Status; pagina?: number }): Promise<ListaClientes>`
+  - `criarCliente(db: SupabaseClient, input: ClienteInput): Promise<Cliente>`, `atualizarCliente(db: SupabaseClient, id: string, input: ClienteInput): Promise<Cliente>`, `excluirCliente(db: SupabaseClient, id: string): Promise<void>`. As páginas e actions passam `await createServerClient()`.
+  - Colunas de controle (`id`, `empresa_id`, `criado_em`, `atualizado_em`) nunca fazem parte de `ClienteInput` nem são enviadas em insert/update; os campos `text` têm limite de tamanho no schema (`nome` até 200, `email` até 254, `telefone` até 40, `empresa_contato` até 200, `notas` até 5000).
   - Constante exportada `TAMANHO_PAGINA = 20`
 
 - [ ] **Step 1: Escrever os testes que falham:**
   - `clienteSchema`: nome vazio rejeitado; `valor_estimado` `""` vira `0`; `-5` rejeitado; `10.999` rejeitado; `10.5` aceito (Review Focus 5);
   - `escaparTermoBusca("a%b_c,d(e)")` devolve um texto em que `%`, `_`, `,`, `(`, `)` não têm efeito especial no filtro (Review Focus 2);
-  - integração: criar 25 clientes → `listarClientes({})` devolve 20 itens, `total` 25, `totalPaginas` 2; `pagina: 2` devolve 5; **`pagina: 999` devolve a última página; `pagina: NaN` e `0` devolvem a primeira** (Review Focus 3); busca por parte do nome ou do e-mail encontra o cliente; filtro por `status` funciona; busca com `%` não retorna todos os registros.
+  - integração: criar 25 clientes → `listarClientes({})` devolve 20 itens, `total` 25, `totalPaginas` 2; `pagina: 2` devolve 5; **`pagina: 999` devolve a última página; `pagina: NaN` e `0` devolvem a primeira** (Review Focus 3); busca por parte do nome ou do e-mail encontra o cliente, sem diferenciar maiúsculas de minúsculas (`ilike`); filtro por `status` funciona; busca com `%` ou `_` não retorna todos os registros; busca com vírgula, parênteses e aspas no termo é tratada como texto e não quebra o filtro `or(...)` do PostgREST (escapar entre aspas ou equivalente, e ter um teste de integração para cada um desses caracteres); `nome` acima de 200 caracteres é rejeitado pelo schema.
 - [ ] **Step 2:** Rodar os testes. Esperado: FAIL.
 - [ ] **Step 3:** Implementar `clienteSchema` e `escaparTermoBusca`.
 - [ ] **Step 4:** Implementar o repositório com o cliente Supabase do usuário (nunca a chave de serviço), usando `range` para paginar e `count: "exact"`. Ordenar por `criado_em` decrescente. Não enviar `empresa_id`: o `default` da Task 2 preenche.
@@ -172,27 +173,25 @@ tests/{unit,integration,e2e}/
 ### Task 6: Indicadores e dashboard
 
 **Files:**
-- Create: `src/lib/indicadores.ts`, `src/app/(app)/dashboard/page.tsx`, `src/components/dashboard/{cartoes,grafico-semanas,grafico-status}.tsx`
-- Test: `tests/unit/indicadores.test.ts`
+- Create: `supabase/migrations/0003_indicadores_empresa.sql`, `src/lib/indicadores.ts`, `src/app/(app)/dashboard/page.tsx`, `src/components/dashboard/{cartoes,grafico-semanas,grafico-status}.tsx`
+- Test: `tests/unit/indicadores.test.ts`, `tests/integration/indicadores.test.ts`
 
 **Interfaces:**
-- Consumes: `Cliente`, `Status` (Task 4); `createServerClient` (Task 3).
+- Consumes: `Status` (Task 4); `obterSessao(db)` e `createServerClient` (Task 3); helpers de integração (Task 2/3b).
 - Produces:
+  - SQL: função `public.indicadores_empresa(p_agora timestamptz default now()) returns jsonb`, `language sql stable`, **`security invoker`** (a RLS de `clientes` continua valendo, então só agrega a empresa do usuário), `set search_path = ''`, `execute` concedido só a `authenticated` (revogado de `public` e `anon`). Devolve `{ contagens: { lead, cliente, perdido }, valor_em_negociacao, leads_por_semana: [{ semana_inicio, total }] }`, com agregação feita no banco: nada de buscar todas as linhas pela API (o PostgREST trunca em 1000 linhas, spec §6). `leads_por_semana` traz só as semanas que têm clientes criados nas últimas 8 semanas (segunda-feira UTC), em `date`.
   - `type Indicadores = { totalLeads: number; totalClientes: number; taxaConversao: number; valorEmNegociacao: number; leadsPorSemana: { semanaInicio: string; total: number }[]; porStatus: Record<Status, number> }`
-  - `calcularIndicadores(clientes: Pick<Cliente, "status" | "valor_estimado" | "criado_em">[], agora: Date): Indicadores`
-  - Decisões que a spec deixa abertas: `taxaConversao` é uma fração de 0 a 1, igual a clientes ÷ (leads + clientes), e `0` se o denominador for 0; `perdido` não entra na taxa nem no valor; `valorEmNegociacao` soma só `status === "lead"`; semanas começam na segunda-feira em UTC; `leadsPorSemana` sempre devolve exatamente 8 itens, do mais antigo ao mais recente, com `0` nas semanas sem leads; conta como "novo lead" todo cliente criado na semana, independente do status atual.
+  - `type IndicadoresBrutos` = o `jsonb` acima já tipado; `montarIndicadores(bruto: IndicadoresBrutos, agora: Date): Indicadores` (função pura); `buscarIndicadores(db: SupabaseClient, agora?: Date): Promise<Indicadores>` (chama `db.rpc("indicadores_empresa", ...)` e `montarIndicadores`; erro do banco vira exceção com log, nunca zeros silenciosos); `formatarPercentual(fracao: number): string` (`0.25` → `"25%"`, `0` → `"0%"`, arredonda para inteiro, formato pt-BR).
+  - Decisões que a spec fixa ou deixa abertas: `taxaConversao` é uma fração de 0 a 1, igual a clientes ÷ (leads + clientes), e `0` se o denominador for 0; `perdido` não entra na taxa nem no valor; `valorEmNegociacao` soma só `status = lead`; semanas começam na segunda-feira em UTC; `leadsPorSemana` sempre devolve exatamente 8 itens, do mais antigo ao mais recente, com `0` nas semanas sem clientes novos; conta como "novo lead" todo cliente criado na semana, independente do status atual. O controlador aplica a migration `0003` no projeto Supabase de desenvolvimento (o subagente só escreve o arquivo).
 
 - [ ] **Step 1: Escrever os testes que falham:**
-  - lista vazia: tudo `0`, 8 semanas com `total: 0`, `taxaConversao: 0` (Review Focus 4);
-  - só `perdido`: `taxaConversao: 0` e `valorEmNegociacao: 0`;
-  - 3 leads (valores 100, 200, 50), 1 cliente (valor 999), 1 perdido (valor 500): `totalLeads: 3`, `totalClientes: 1`, `taxaConversao: 0.25`, `valorEmNegociacao: 350`;
-  - clientes criados num domingo 23:59 UTC e numa segunda 00:00 UTC caem em semanas diferentes;
-  - cliente criado há mais de 8 semanas não aparece em `leadsPorSemana`, mas entra nos totais.
-- [ ] **Step 2:** Rodar `npx vitest run tests/unit/indicadores.test.ts`. Esperado: FAIL.
-- [ ] **Step 3:** Implementar `calcularIndicadores` como função pura.
-- [ ] **Step 4:** Construir `/dashboard`: busca `status`, `valor_estimado` e `criado_em` de todos os clientes da empresa pelo cliente Supabase do usuário, calcula e renderiza quatro cartões, gráfico de barras de leads por semana e rosca por status (Recharts, cores do tema). Sem clientes: estado vazio com o botão "Adicionar primeiro cliente", sem gráficos.
+  - unitários de `montarIndicadores` (bruto simulado): bruto vazio: tudo `0`, 8 semanas com `total: 0`, `taxaConversao: 0` (Review Focus 4); só `perdido`: `taxaConversao: 0` e `valorEmNegociacao: 0`; contagens lead 3, cliente 1, perdido 1 e valor 350: `totalLeads: 3`, `totalClientes: 1`, `taxaConversao: 0.25`, `valorEmNegociacao: 350`; semanas preenchidas com `0` e ordenadas, 8 itens, segunda-feira como início; `formatarPercentual(0.25)` é `"25%"`;
+  - integração (`tests/integration/indicadores.test.ts`, com duas empresas): mais de 1000 clientes inseridos para a empresa A pelo cliente de serviço em lotes (por exemplo 1050, entre `lead`, `cliente` e `perdido` em proporções conhecidas): `buscarIndicadores` reporta totais exatos, sem truncar em 1000; os dados da empresa B não entram na conta de A; `perdido` fora do valor e da taxa; clientes criados num domingo 23:59 UTC e numa segunda 00:00 UTC caem em semanas diferentes; um cliente criado há mais de 8 semanas entra nos totais mas não em `leadsPorSemana`; o cliente anônimo não consegue executar a função.
+- [ ] **Step 2:** Rodar os testes. Esperado: FAIL (função SQL e módulo inexistentes).
+- [ ] **Step 3:** Escrever a migration `0003` e implementar `montarIndicadores`, `buscarIndicadores` e `formatarPercentual`. Parar e avisar o controlador para aplicar a migration antes dos testes de integração.
+- [ ] **Step 4:** Construir `/dashboard`: chama `obterSessao` e `buscarIndicadores` dentro de `Suspense` (a página lê cookies, com `cacheComponents`), renderiza quatro cartões (a taxa com `formatarPercentual`), gráfico de barras de leads por semana e rosca por status (Recharts, cores do tema). Sem clientes: estado vazio com o botão "Adicionar primeiro cliente", sem gráficos. `obterSessao` lança exceção quando a consulta de `perfis` falha: a página trata com mensagem amigável.
 - [ ] **Step 5:** Rodar os testes. Esperado: PASS.
-- [ ] **Step 6: Commit** — `feat: add metrics calculation and dashboard`
+- [ ] **Step 6: Commit** — `feat: add metrics aggregation and dashboard`
 
 ---
 

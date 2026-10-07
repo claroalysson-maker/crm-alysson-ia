@@ -73,13 +73,13 @@ O dono do sistema cria a empresa, o usuário e o perfil diretamente pelo painel 
 
 ## 6. Dashboard
 
-Os indicadores são calculados a partir da tabela `clientes`, sempre sobre todos os clientes da empresa, sem truncar. O cálculo não pode depender de buscar todas as linhas pela API, pois o PostgREST limita a resposta a 1000 linhas por padrão; com volumes maiores a agregação é feita no banco.
+Os indicadores são calculados a partir da tabela `clientes`, sempre sobre todos os clientes da empresa, sem truncar. A agregação é sempre feita no banco (função SQL com `security invoker`, que respeita a RLS), nunca buscando todas as linhas pela API, pois o PostgREST limita a resposta a 1000 linhas por padrão. As semanas começam na segunda-feira, em UTC. "Novos leads por semana" conta todo cliente criado na semana, qualquer que seja o status atual.
 
 **Cartões**
 - Total de leads.
 - Total de clientes.
 - Taxa de conversão: clientes ÷ (leads + clientes), exibida em porcentagem. Clientes `perdido` não entram na conta.
-- Valor em negociação: soma de `valor_estimado` dos leads ativos. "Lead ativo" é todo cliente com `status = lead`.
+- Valor em negociação: soma de `valor_estimado` dos clientes com `status = lead`.
 
 **Gráficos**
 - Novos leads por semana, nas últimas 8 semanas.
