@@ -34,8 +34,13 @@ describe("isolamento multi-tenant (RLS)", () => {
   });
 
   afterAll(async () => {
-    if (a) await limparEmpresaComUsuario(a);
-    if (b) await limparEmpresaComUsuario(b);
+    const resultados = await Promise.allSettled(
+      [a, b].filter(Boolean).map((e) => limparEmpresaComUsuario(e)),
+    );
+    const falhas = resultados.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (falhas.length > 0) {
+      throw new Error(falhas.map((f) => (f.reason as Error).message).join(" | "));
+    }
   });
 
   it("usuario A lista clientes e ve apenas os da empresa A", async () => {
@@ -44,6 +49,27 @@ describe("isolamento multi-tenant (RLS)", () => {
     expect(data).toHaveLength(1);
     expect(data![0].id).toBe(clienteAId);
     expect(data!.filter((c) => c.empresa_id === b.empresaId)).toHaveLength(0);
+  });
+
+  it("usuario B lista clientes e ve apenas os da empresa B", async () => {
+    const { data, error } = await b.clienteSupabase.from("clientes").select("id, empresa_id");
+    expect(error).toBeNull();
+    expect(data).toHaveLength(1);
+    expect(data![0].id).toBe(clienteBId);
+    expect(data!.filter((c) => c.empresa_id === a.empresaId)).toHaveLength(0);
+  });
+
+  it("usuario A nao consegue mover o proprio cliente para a empresa B", async () => {
+    const { data, error } = await a.clienteSupabase
+      .from("clientes")
+      .update({ empresa_id: b.empresaId })
+      .eq("id", clienteAId)
+      .select();
+    expect(error !== null || data!.length === 0).toBe(true);
+
+    const { data: depois } = await clienteServico()
+      .from("clientes").select("empresa_id").eq("id", clienteAId).single();
+    expect(depois?.empresa_id).toBe(a.empresaId);
   });
 
   it("usuario A nao consegue atualizar cliente da empresa B", async () => {
@@ -100,6 +126,11 @@ describe("isolamento multi-tenant (RLS)", () => {
     const { data, error } = await a.clienteSupabase.from("empresas").select("id");
     expect(error).toBeNull();
     expect(data).toEqual([{ id: a.empresaId }]);
+
+    const { data: datada, error: erroData } = await a.clienteSupabase
+      .from("empresas").select("criada_em").eq("id", a.empresaId).single();
+    expect(erroData).toBeNull();
+    expect(datada?.criada_em).toEqual(expect.any(String));
   });
 
   it("usuario A le perfis e ve apenas o proprio", async () => {

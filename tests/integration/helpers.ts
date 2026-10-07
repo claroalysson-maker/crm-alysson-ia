@@ -35,45 +35,79 @@ export async function criarEmpresaComUsuario(
   senha: string,
 ): Promise<EmpresaComUsuario> {
   const servico = clienteServico();
+  let empresaId: string | undefined;
+  let usuarioId: string | undefined;
 
-  const { data: empresa, error: erroEmpresa } = await servico
-    .from("empresas")
-    .insert({ nome: nomeEmpresa })
-    .select("id")
-    .single();
-  if (erroEmpresa) throw new Error(`Falha ao criar empresa: ${erroEmpresa.message}`);
+  try {
+    const { data: empresa, error: erroEmpresa } = await servico
+      .from("empresas")
+      .insert({ nome: nomeEmpresa })
+      .select("id")
+      .single();
+    if (erroEmpresa) throw new Error(`Falha ao criar empresa: ${erroEmpresa.message}`);
+    empresaId = empresa.id;
 
-  const { data: criado, error: erroUsuario } = await servico.auth.admin.createUser({
-    email,
-    password: senha,
-    email_confirm: true,
-  });
-  if (erroUsuario || !criado.user) {
-    throw new Error(`Falha ao criar usuario: ${erroUsuario?.message}`);
+    const { data: criado, error: erroUsuario } = await servico.auth.admin.createUser({
+      email,
+      password: senha,
+      email_confirm: true,
+    });
+    if (erroUsuario || !criado.user) {
+      throw new Error(`Falha ao criar usuario: ${erroUsuario?.message}`);
+    }
+    usuarioId = criado.user.id;
+
+    const { error: erroPerfil } = await servico
+      .from("perfis")
+      .insert({ usuario_id: usuarioId, empresa_id: empresaId, papel: "admin" });
+    if (erroPerfil) throw new Error(`Falha ao criar perfil: ${erroPerfil.message}`);
+
+    const clienteSupabase = clienteAnonimo();
+    const { error: erroLogin } = await clienteSupabase.auth.signInWithPassword({
+      email,
+      password: senha,
+    });
+    if (erroLogin) throw new Error(`Falha ao autenticar usuario: ${erroLogin.message}`);
+
+    return { empresaId, usuarioId, clienteSupabase };
+  } catch (erro) {
+    try {
+      await limparRecursos(empresaId, usuarioId);
+    } catch (erroLimpeza) {
+      console.error("Falha ao limpar recursos parciais:", (erroLimpeza as Error).message);
+    }
+    throw erro;
   }
-  const usuarioId = criado.user.id;
+}
 
-  const { error: erroPerfil } = await servico
-    .from("perfis")
-    .insert({ usuario_id: usuarioId, empresa_id: empresa.id, papel: "admin" });
-  if (erroPerfil) throw new Error(`Falha ao criar perfil: ${erroPerfil.message}`);
+async function limparRecursos(
+  empresaId: string | undefined,
+  usuarioId: string | undefined,
+): Promise<void> {
+  const servico = clienteServico();
+  const erros: string[] = [];
+  const registrar = (etapa: string, erro: { message: string } | null) => {
+    if (erro) erros.push(`${etapa}: ${erro.message}`);
+  };
 
-  const clienteSupabase = clienteAnonimo();
-  const { error: erroLogin } = await clienteSupabase.auth.signInWithPassword({
-    email,
-    password: senha,
-  });
-  if (erroLogin) throw new Error(`Falha ao autenticar usuario: ${erroLogin.message}`);
+  if (empresaId) {
+    registrar("clientes", (await servico.from("clientes").delete().eq("empresa_id", empresaId)).error);
+  }
+  if (usuarioId) {
+    registrar("usuario", (await servico.auth.admin.deleteUser(usuarioId)).error);
+  }
+  if (empresaId) {
+    registrar("perfis", (await servico.from("perfis").delete().eq("empresa_id", empresaId)).error);
+    registrar("empresas", (await servico.from("empresas").delete().eq("id", empresaId)).error);
+  }
 
-  return { empresaId: empresa.id, usuarioId, clienteSupabase };
+  if (erros.length > 0) {
+    throw new Error(`Falha na limpeza de teste: ${erros.join("; ")}`);
+  }
 }
 
 export async function limparEmpresaComUsuario(
   { empresaId, usuarioId }: Pick<EmpresaComUsuario, "empresaId" | "usuarioId">,
 ): Promise<void> {
-  const servico = clienteServico();
-  await servico.from("clientes").delete().eq("empresa_id", empresaId);
-  await servico.auth.admin.deleteUser(usuarioId);
-  await servico.from("perfis").delete().eq("empresa_id", empresaId);
-  await servico.from("empresas").delete().eq("id", empresaId);
+  await limparRecursos(empresaId, usuarioId);
 }
