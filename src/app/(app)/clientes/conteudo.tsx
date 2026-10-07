@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { EstadoVazio, ErroNaLista, SemResultados } from "@/components/clientes/estados";
 import { FiltrosClientes } from "@/components/clientes/filtros";
 import { Paginacao } from "@/components/clientes/paginacao";
@@ -37,6 +38,9 @@ export async function ConteudoClientes({
 }: {
   searchParams: Promise<ParametrosBrutos>;
 }) {
+  // Adia ao momento da requisicao: sem isso o Next tenta prerenderizar (ex.: prefetch)
+  // e a consulta ao Supabase falha com `Date.now()` instavel, poluindo o log do servidor.
+  await connection();
   const params = lerParametrosClientes(await searchParams);
   const lista = await carregar(params);
 

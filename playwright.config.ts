@@ -1,11 +1,33 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
+
+const PORTA = 3100;
+const URL_BASE = `http://localhost:${PORTA}`;
+
+// NEXT_PUBLIC_* sao embutidas no build: precisam estar no ambiente deste comando.
+for (const nome of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"]) {
+  if (!process.env[nome]) {
+    throw new Error(`Defina ${nome} no ambiente para rodar os testes E2E (o build a embute).`);
+  }
+}
 
 export default defineConfig({
   testDir: "tests/e2e",
-  use: { baseURL: "http://localhost:3000" },
+  fullyParallel: false,
+  workers: 1,
+  retries: 0,
+  reporter: "list",
+  globalSetup: "./tests/e2e/setup.ts",
+  globalTeardown: "./tests/e2e/teardown.ts",
+  use: {
+    baseURL: URL_BASE,
+    locale: "pt-BR",
+    trace: "on-first-retry",
+  },
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "npm run dev",
-    url: "http://localhost:3000",
-    reuseExistingServer: true,
+    command: `npm run build && npm run start -- -p ${PORTA}`,
+    url: `${URL_BASE}/login`,
+    reuseExistingServer: false,
+    timeout: 300_000,
   },
 });

@@ -3,7 +3,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listarClientes = vi.fn();
+const ordem: string[] = [];
+const conexao = vi.fn(async () => {
+  ordem.push("connection");
+});
 
+vi.mock("next/server", () => ({ connection: () => conexao() }));
 vi.mock("@/lib/supabase/server", () => ({ createServerClient: async () => ({}) }));
 vi.mock("@/lib/clientes/repositorio", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/clientes/repositorio")>()),
@@ -90,7 +95,17 @@ describe("Paginacao", () => {
 describe("ConteudoClientes (pagina /clientes)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    ordem.length = 0;
     vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  it("adia a renderizacao para o momento da requisicao antes de consultar o banco", async () => {
+    listarClientes.mockImplementation(async () => {
+      ordem.push("listar");
+      return { itens: [], total: 0, pagina: 1, totalPaginas: 1 };
+    });
+    await renderizar();
+    expect(ordem).toEqual(["connection", "listar"]);
   });
 
   it("lista falhando mostra mensagem amigavel, sem detalhe tecnico, e registra no servidor", async () => {
