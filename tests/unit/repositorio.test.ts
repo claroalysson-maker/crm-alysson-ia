@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { expressaoBusca } from "@/lib/clientes/busca";
 import {
+  ErroClientes,
   TAMANHO_PAGINA,
   atualizarCliente,
   criarCliente,
@@ -118,7 +119,11 @@ describe("repositorio de clientes (db injetado)", () => {
 
     it("erro na contagem lanca mensagem amigavel e registra codigo e detalhe", async () => {
       const { db } = dbCom({ error: { code: "42501", message: "negado" } });
-      await expect(listarClientes(db, {})).rejects.toThrow("Não foi possível listar os clientes.");
+      await expect(listarClientes(db, {})).rejects.toBeInstanceOf(ErroClientes);
+      await expect(listarClientes(dbCom({ error: { code: "42501", message: "negado" } }).db, {})).rejects.toThrow(
+        "Não foi possível listar os clientes.",
+      );
+      expect(console.error).toHaveBeenCalledTimes(2); // uma por chamada: o repositorio registra uma vez
       expect(console.error).toHaveBeenCalledWith(expect.any(String), "42501", "negado");
     });
 

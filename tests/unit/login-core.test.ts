@@ -62,7 +62,25 @@ describe("autenticar com falhas tecnicas", () => {
     expect(await autenticar(db, "a@b.com", "s")).toEqual({
       erro: "Sua conta não está vinculada a uma empresa",
     });
-    expect(signOut).toHaveBeenCalledOnce();
+    expect(signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
+  });
+
+  it("sem perfil e signOut falhando: registra o erro e ainda informa conta nao vinculada", async () => {
+    const { db, signOut } = dbFalso({ login: { error: null } });
+    signOut.mockResolvedValue({ error: { message: "falhou" } });
+    expect(await autenticar(db, "a@b.com", "s")).toEqual({
+      erro: "Sua conta não está vinculada a uma empresa",
+    });
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("sem perfil"), "falhou");
+  });
+
+  it.each([
+    ["sem-usuario", { data: { user: null }, error: { name: "AuthSessionMissingError", message: "x" } }],
+    ["sessao-invalida", { data: { user: null }, error: { name: "AuthApiError", message: "jwt", status: 403 } }],
+  ])("estado %s apos o login nao vira conta sem empresa: mensagem amigavel e signOut local", async (_n, usuario) => {
+    const { db, signOut } = dbFalso({ login: { error: null }, usuario });
+    expect(await autenticar(db, "a@b.com", "s")).toEqual({ erro: ERRO_FALHA_TEMPORARIA });
+    expect(signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
   });
 });
 

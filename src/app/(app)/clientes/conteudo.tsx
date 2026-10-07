@@ -8,7 +8,7 @@ import {
   lerParametrosClientes,
   type ParametrosClientes,
 } from "@/lib/clientes/parametros";
-import { listarClientes, type ListaClientes } from "@/lib/clientes/repositorio";
+import { ErroClientes, listarClientes, type ListaClientes } from "@/lib/clientes/repositorio";
 import { createServerClient } from "@/lib/supabase/server";
 
 type ParametrosBrutos = Parameters<typeof lerParametrosClientes>[0];
@@ -19,7 +19,10 @@ async function carregar(
   try {
     return await listarClientes(await createServerClient(), params);
   } catch (erro) {
-    console.error("Falha ao carregar a página de clientes:", (erro as Error).message);
+    // O repositorio ja registra o detalhe; so registra aqui o que nao passou por ele.
+    if (!(erro instanceof ErroClientes)) {
+      console.error("Falha ao carregar a página de clientes:", (erro as Error).message);
+    }
     return null;
   }
 }

@@ -47,14 +47,22 @@ export type ParametrosLista = {
   pagina?: number;
 };
 
+/** Falha ja registrada (com o detalhe tecnico) pelo repositorio; quem captura nao registra de novo. */
+export class ErroClientes extends Error {
+  constructor(mensagem: string) {
+    super(mensagem);
+    this.name = "ErroClientes";
+  }
+}
+
 /** Registra o detalhe tecnico no servidor e devolve um erro com mensagem curta para a interface. */
 function falha(
   mensagem: string,
   contexto: string,
   erro: PostgrestError,
-): Error {
+): ErroClientes {
   console.error(`${contexto}:`, erro.code, erro.message);
-  return new Error(mensagem);
+  return new ErroClientes(mensagem);
 }
 
 function paginaValida(pagina: number | undefined): number {

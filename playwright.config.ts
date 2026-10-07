@@ -1,4 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
+import "./tests/integration/helpers"; // carrega .env.test.local (SUPABASE_URL etc.) antes da checagem
+import { validarAmbienteE2E } from "./tests/e2e/ambiente";
 
 const PORTA = 3100;
 const URL_BASE = `http://localhost:${PORTA}`;
@@ -9,6 +11,9 @@ for (const nome of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"]
     throw new Error(`Defina ${nome} no ambiente para rodar os testes E2E (o build a embute).`);
   }
 }
+
+// Antes de construir/subir o servidor: as duas URLs precisam ser do projeto de teste declarado.
+validarAmbienteE2E(process.env);
 
 export default defineConfig({
   testDir: "tests/e2e",

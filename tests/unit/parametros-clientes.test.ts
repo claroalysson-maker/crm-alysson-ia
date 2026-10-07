@@ -12,6 +12,12 @@ describe("lerParametrosClientes", () => {
     expect(lerParametrosClientes({ busca: [] }).busca).toBe("");
   });
 
+  it("limita a busca a 200 caracteres", () => {
+    expect(lerParametrosClientes({ busca: "a".repeat(500) }).busca).toBe("a".repeat(200));
+    expect(lerParametrosClientes({ busca: "b".repeat(200) }).busca).toBe("b".repeat(200));
+    expect(lerParametrosClientes({ busca: `  ${"c".repeat(300)}` }).busca).toHaveLength(200);
+  });
+
   it.each(["lead", "cliente", "perdido"])("aceita o status %s", (status) => {
     expect(lerParametrosClientes({ status }).status).toBe(status);
   });

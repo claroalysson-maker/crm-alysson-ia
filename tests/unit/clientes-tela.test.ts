@@ -23,6 +23,7 @@ import { ConteudoClientes } from "@/app/(app)/clientes/conteudo";
 import { FiltrosClientes } from "@/components/clientes/filtros";
 import { Paginacao, hrefDaPagina } from "@/components/clientes/paginacao";
 import { TabelaClientes } from "@/components/clientes/tabela";
+import { ErroClientes } from "@/lib/clientes/repositorio";
 import { formatarMoeda } from "@/lib/clientes/formato";
 import type { Cliente } from "@/lib/clientes/schema";
 
@@ -134,7 +135,14 @@ describe("ConteudoClientes (pagina /clientes)", () => {
     const html = await renderizar();
     expect(html).toContain("Não foi possível carregar os clientes");
     expect(html).not.toContain("secreto");
-    expect(console.error).toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("falha ja registrada pelo repositorio nao e registrada de novo na tela", async () => {
+    listarClientes.mockRejectedValue(new ErroClientes("Não foi possível listar os clientes."));
+    const html = await renderizar();
+    expect(html).toContain("Não foi possível carregar os clientes");
+    expect(console.error).not.toHaveBeenCalled();
   });
 
   it("sem nenhum cliente mostra estado vazio com botao de primeiro cliente", async () => {

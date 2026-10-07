@@ -2,6 +2,8 @@ import { STATUS, type Status } from "./schema";
 
 type ValorBruto = string | string[] | undefined;
 
+const BUSCA_MAXIMA = 200;
+
 export type ParametrosClientes = {
   busca: string;
   status: Status | undefined;
@@ -19,7 +21,7 @@ export function lerParametrosClientes(
   const status = primeiro(bruto.status);
   const pagina = Number(primeiro(bruto.pagina));
   return {
-    busca: primeiro(bruto.busca)?.trim() ?? "",
+    busca: (primeiro(bruto.busca)?.trim() ?? "").slice(0, BUSCA_MAXIMA),
     status: (STATUS as readonly string[]).includes(status ?? "")
       ? (status as Status)
       : undefined,

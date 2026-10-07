@@ -23,8 +23,14 @@ export async function autenticar(
 
     const estado = await obterEstadoSessao(db);
     if (estado.tipo === "valida") return {};
-    await db.auth.signOut();
-    return { erro: ERRO_SEM_EMPRESA };
+    // Sem perfil: conta nao vinculada. Sem usuario/sessao invalida logo apos o login e anomalo:
+    // mensagem generica. Nos dois casos, limpa so a sessao deste navegador.
+    const semPerfil = estado.tipo === "sem-perfil";
+    const { error: erroSaida } = await db.auth.signOut({ scope: "local" });
+    if (erroSaida) {
+      console.error(`Falha ao encerrar a sessao ${semPerfil ? "sem perfil" : "invalida"} no login:`, erroSaida.message);
+    }
+    return { erro: semPerfil ? ERRO_SEM_EMPRESA : ERRO_FALHA_TEMPORARIA };
   } catch (erro) {
     console.error("Falha inesperada no login:", (erro as Error).message);
     return { erro: ERRO_FALHA_TEMPORARIA };

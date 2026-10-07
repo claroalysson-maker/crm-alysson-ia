@@ -1,13 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const criarClienteSSR = vi.fn();
-const criarClienteNavegador = vi.fn();
 const processarRequisicao = vi.fn();
 const armazenamento = { getAll: vi.fn(), set: vi.fn() };
 
 vi.mock("@supabase/ssr", () => ({
   createServerClient: (...a: unknown[]) => criarClienteSSR(...a),
-  createBrowserClient: (...a: unknown[]) => criarClienteNavegador(...a),
 }));
 vi.mock("next/headers", () => ({ cookies: async () => armazenamento }));
 vi.mock("@/lib/proxy/processar-requisicao", () => ({
@@ -15,18 +13,16 @@ vi.mock("@/lib/proxy/processar-requisicao", () => ({
 }));
 
 import { proxy } from "@/proxy";
-import { createBrowserClient } from "@/lib/supabase/browser";
 import { createServerClient } from "@/lib/supabase/server";
 
 const URL_SUPABASE = "https://exemplo.supabase.test";
 const CHAVE_ANON = "chave-anonima-de-teste";
 
-describe("clientes Supabase e proxy (fiacao)", () => {
+describe("cliente Supabase do servidor e proxy (fiacao)", () => {
   beforeEach(() => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", URL_SUPABASE);
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", CHAVE_ANON);
     criarClienteSSR.mockReset().mockReturnValue({ marca: "cliente" });
-    criarClienteNavegador.mockReset().mockReturnValue({ marca: "navegador" });
     processarRequisicao.mockReset();
     armazenamento.getAll.mockReset().mockReturnValue([{ name: "a", value: "1" }]);
     armazenamento.set.mockReset();
@@ -60,13 +56,6 @@ describe("clientes Supabase e proxy (fiacao)", () => {
     it("falha se o ambiente nao esta configurado", async () => {
       vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
       await expect(createServerClient()).rejects.toThrow(/NEXT_PUBLIC_SUPABASE_URL/);
-    });
-  });
-
-  describe("createBrowserClient", () => {
-    it("cria o cliente de navegador com URL e chave publicas", () => {
-      expect(createBrowserClient()).toEqual({ marca: "navegador" });
-      expect(criarClienteNavegador).toHaveBeenCalledExactlyOnceWith(URL_SUPABASE, CHAVE_ANON);
     });
   });
 

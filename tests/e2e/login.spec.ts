@@ -15,6 +15,16 @@ test.describe("sem sessao", () => {
     });
   }
 
+  test("responde com cabecalhos de seguranca e sem X-Powered-By", async ({ page }) => {
+    const resposta = await page.goto("/login");
+    const cabecalhos = resposta!.headers();
+    expect(cabecalhos["x-frame-options"]).toBe("DENY");
+    expect(cabecalhos["x-content-type-options"]).toBe("nosniff");
+    expect(cabecalhos["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+    expect(cabecalhos["permissions-policy"]).toBe("camera=(), microphone=(), geolocation=()");
+    expect(cabecalhos["x-powered-by"]).toBeUndefined();
+  });
+
   test("senha errada mostra a mensagem generica e permanece em /login", async ({ page }) => {
     const { email } = lerCredenciais();
     await entrarPelaTela(page, email, "senha-errada-123");
