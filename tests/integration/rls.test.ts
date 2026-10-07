@@ -289,8 +289,12 @@ describe("isolamento multi-tenant (RLS)", () => {
       expect(error).toBeNull();
       expect(data).toHaveLength(0);
 
-      const { error: erroInsert } = await db.from("clientes").insert({ nome: "Sem perfil" });
+      // empresa_id explicito de empresa existente: sem a policy clientes_insert o insert
+      // passaria; omiti-lo falharia por NOT NULL mesmo sem policy (teste vacuo).
+      const { error: erroInsert } = await db
+        .from("clientes").insert({ empresa_id: a.empresaId, nome: "Sem perfil" });
       expect(erroInsert).not.toBeNull();
+      expect(erroInsert!.message).toMatch(RLS);
 
       const { data: criado } = await clienteServico()
         .from("clientes").select("id").eq("nome", "Sem perfil");

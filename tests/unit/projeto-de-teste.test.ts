@@ -29,4 +29,20 @@ describe("validarProjetoDeTeste", () => {
   it("nao aceita subdominio extra que apenas termina com a ref", () => {
     expect(() => validarProjetoDeTeste("https://x.abc123.supabase.co", "abc123")).toThrow();
   });
+
+  it("aceita barra final e host em maiusculas (comparacao sem diferenciar caixa)", () => {
+    expect(() => validarProjetoDeTeste("https://abc123.supabase.co/", "abc123")).not.toThrow();
+    expect(() => validarProjetoDeTeste("https://ABC123.Supabase.co", "abc123")).not.toThrow();
+    expect(() => validarProjetoDeTeste("https://abc123.supabase.co", "ABC123")).not.toThrow();
+  });
+
+  it.each([
+    "https://user:pw@abc123.supabase.co",
+    "https://abc123.supabase.co/x",
+    "https://abc123.supabase.co:8443",
+    "http://abc123.supabase.co",
+    "https://x.abc123.supabase.co",
+  ])("rejeita %s", (url) => {
+    expect(() => validarProjetoDeTeste(url, "abc123")).toThrow(/SUPABASE_URL/);
+  });
 });

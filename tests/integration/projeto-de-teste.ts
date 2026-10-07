@@ -9,11 +9,11 @@ export function validarProjetoDeTeste(url: string, refEsperado: string | undefin
         "para permitir os testes de integracao.",
     );
   }
-  const ref = /^https:\/\/([a-z0-9]+)\.supabase\.co\/?$/i.exec(url)?.[1];
+  const ref = /^https:\/\/([a-z0-9]+)\.supabase\.co\/?$/i.exec(url)?.[1]?.toLowerCase();
   if (!ref) {
     throw new Error("SUPABASE_URL invalida: esperado https://<ref>.supabase.co");
   }
-  if (ref !== refEsperado) {
+  if (ref !== refEsperado.toLowerCase()) {
     throw new Error(
       `Projeto Supabase incorreto para testes: SUPABASE_URL aponta para "${ref}", ` +
         `mas TEST_SUPABASE_PROJECT_REF e "${refEsperado}". Nenhuma operacao foi feita.`,

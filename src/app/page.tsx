@@ -1,11 +1,10 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
-import { obterSessao } from "@/lib/supabase/session";
+import { destinoInicial } from "@/lib/supabase/destino-inicial";
 
 async function Redirecionar(): Promise<null> {
-  const sessao = await obterSessao(await createServerClient());
-  redirect(sessao ? "/dashboard" : "/login");
+  redirect(await destinoInicial(await createServerClient()));
   return null;
 }
 
