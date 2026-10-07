@@ -156,6 +156,35 @@ describe("clienteSchema", () => {
       expect(valor(9999999999.99).success).toBe(true);
       expect(valor(10000000000).success).toBe(false);
     });
+    it("rejeita formatos que Number() aceitaria", () => {
+      for (const v of [
+        "0x10",
+        "0b11",
+        "0o7",
+        "1e3",
+        "-0",
+        "+5",
+        ".5",
+        "5.",
+        "1_000",
+      ]) {
+        expect(valor(v).success, v).toBe(false);
+      }
+    });
+    it("rejeita -0 numerico", () => {
+      expect(valor(-0).success).toBe(false);
+    });
+    it("aceita decimais simples, com trim", () => {
+      expect(valor("12").data?.valor_estimado).toBe(12);
+      expect(valor("12.5").data?.valor_estimado).toBe(12.5);
+      expect(valor(" 12 ").data?.valor_estimado).toBe(12);
+      expect(valor("0.01").data?.valor_estimado).toBe(0.01);
+    });
+    it("rejeita casas decimais alem da segunda mesmo minusculas", () => {
+      expect(valor(10.00000001).success).toBe(false);
+      expect(valor("10.00000001").success).toBe(false);
+      expect(valor(0.001).success).toBe(false);
+    });
     it("rejeita tipos inesperados", () => {
       expect(valor(null).success).toBe(false);
       expect(valor({}).success).toBe(false);

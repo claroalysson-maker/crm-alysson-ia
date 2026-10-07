@@ -14,8 +14,9 @@
  *    desescape das aspas, cada barra do LIKE precisa ser dobrada.
  *
  * Caso especial: o PostgREST troca `*` por `%` em valores de like/ilike e nao
- * ha como escapar esse `*`; ele vira `_` (um caractere qualquer), que ainda
- * casa com o proprio `*` e nao amplia a busca para "tudo".
+ * ha como escapar esse `*`; ele vira `_` (um caractere qualquer). Assim `a*b`
+ * casa com o literal `a*b`, mas tambem com `axb`, e um `*` sozinho casa todo
+ * nome nao vazio da propria empresa (nunca de outra: a RLS continua valendo).
  */
 const BARRA = "\\";
 

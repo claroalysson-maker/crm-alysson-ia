@@ -8,6 +8,32 @@ export const TAMANHO_PAGINA = 20;
 const COLUNAS: string =
   "id, empresa_id, nome, email, telefone, empresa_contato, status, valor_estimado, notas, criado_em, atualizado_em";
 
+export function totalPaginasPara(total: number): number {
+  return Math.max(1, Math.ceil(total / TAMANHO_PAGINA));
+}
+
+/** Escolhe exatamente os 7 campos editaveis; nunca repassa chaves extras ao banco. */
+function payload(input: ClienteInput): ClienteInput {
+  const {
+    nome,
+    email,
+    telefone,
+    empresa_contato,
+    status,
+    valor_estimado,
+    notas,
+  } = input;
+  return {
+    nome,
+    email,
+    telefone,
+    empresa_contato,
+    status,
+    valor_estimado,
+    notas,
+  };
+}
+
 export type ListaClientes = {
   itens: Cliente[];
   total: number;
@@ -77,7 +103,7 @@ export async function listarClientes(
   }
 
   const total = contagem.count ?? 0;
-  const totalPaginas = Math.max(1, Math.ceil(total / TAMANHO_PAGINA));
+  const totalPaginas = totalPaginasPara(total);
   const pagina = Math.min(paginaValida(params.pagina), totalPaginas);
   if (total === 0) return { itens: [], total, pagina, totalPaginas };
 
@@ -105,7 +131,7 @@ export async function criarCliente(
 ): Promise<Cliente> {
   const { data, error } = await db
     .from("clientes")
-    .insert(input)
+    .insert(payload(input))
     .select<string, Cliente>(COLUNAS)
     .single();
   if (error)
@@ -124,7 +150,7 @@ export async function atualizarCliente(
 ): Promise<Cliente> {
   const { data, error } = await db
     .from("clientes")
-    .update(input)
+    .update(payload(input))
     .eq("id", id)
     .select<string, Cliente>(COLUNAS)
     .single();

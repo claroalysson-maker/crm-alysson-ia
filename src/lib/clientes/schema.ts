@@ -4,7 +4,7 @@ export const STATUS = ["lead", "cliente", "perdido"] as const;
 export type Status = (typeof STATUS)[number];
 
 const VALOR_MAXIMO = 9_999_999_999.99; // numeric(12, 2)
-const EPSILON_CENTAVOS = 1e-6;
+const DECIMAL_SIMPLES = /^\d+(\.\d{1,2})?$/;
 
 /** Texto opcional: aplica trim, limita o tamanho e converte vazio/ausente em null. */
 function textoOpcional(maximo: number) {
@@ -16,12 +16,17 @@ function textoOpcional(maximo: number) {
     .transform((valor) => (valor ? valor : null));
 }
 
-/** O formulario envia string: vazio/ausente vira 0; NaN e Infinity sao rejeitados. */
+/**
+ * O formulario envia string: vazio/ausente vira 0. Strings so valem como
+ * decimal simples com ate 2 casas ("12", "12.5"); hex, binario, notacao
+ * cientifica, virgula e sinal viram NaN e sao rejeitados.
+ */
 function paraNumero(entrada: unknown): unknown {
   if (entrada === undefined) return 0;
   if (typeof entrada !== "string") return entrada;
   const texto = entrada.trim();
-  return texto === "" ? 0 : Number(texto);
+  if (texto === "") return 0;
+  return DECIMAL_SIMPLES.test(texto) ? Number(texto) : Number.NaN;
 }
 
 const valorEstimado = z.preprocess(
@@ -31,7 +36,8 @@ const valorEstimado = z.preprocess(
     .finite()
     .min(0)
     .max(VALOR_MAXIMO)
-    .refine((v) => Math.abs(v * 100 - Math.round(v * 100)) < EPSILON_CENTAVOS, {
+    .refine((v) => !Object.is(v, -0), { message: "Valor invalido" })
+    .refine((v) => Number(v.toFixed(2)) === v, {
       message: "No maximo 2 casas decimais",
     }),
 );

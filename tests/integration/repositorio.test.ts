@@ -160,12 +160,6 @@ describe("repositorio de clientes", () => {
       expect(ids.size).toBe(25);
     });
 
-    it("ordena por criado_em decrescente", async () => {
-      const r = await listarClientes(b.clienteSupabase, {});
-      const datas = r.itens.map((c) => c.criado_em);
-      expect([...datas].sort().reverse()).toEqual(datas);
-    });
-
     it("pagina alem da ultima devolve a ultima pagina", async () => {
       const r = await listarClientes(b.clienteSupabase, { pagina: 999 });
       expect(r.pagina).toBe(2);
@@ -346,6 +340,163 @@ describe("repositorio de clientes", () => {
         expect(await nomesDaBusca(a.clienteSupabase, "xzy@")).toEqual([]);
       } finally {
         await excluirCliente(a.clienteSupabase, c.id);
+      }
+    });
+  });
+
+  describe("ordenacao deterministica", () => {
+    const MINUTO = 60_000;
+    const base = Date.now() - 10 * MINUTO;
+    const ids: string[] = [];
+
+    async function semear(
+      linhas: { nome: string; criado_em: string }[],
+    ): Promise<string[]> {
+      const { data, error } = await clienteServico()
+        .from("clientes")
+        .insert(linhas.map((l) => ({ ...l, empresa_id: a.empresaId })))
+        .select("id");
+      if (error) throw new Error(`Falha ao semear ordenacao: ${error.message}`);
+      const novos = data.map((d) => d.id as string);
+      ids.push(...novos);
+      return novos;
+    }
+
+    afterAll(async () => {
+      const { error } = await clienteServico()
+        .from("clientes")
+        .delete()
+        .in("id", ids);
+      if (error) throw new Error(`Falha ao limpar ordenacao: ${error.message}`);
+    });
+
+    it("criado_em distintos: o mais novo vem primeiro", async () => {
+      // Inseridos fora de ordem de proposito.
+      await semear([
+        {
+          nome: "OrdDist meio",
+          criado_em: new Date(base + 5 * MINUTO).toISOString(),
+        },
+        {
+          nome: "OrdDist novo",
+          criado_em: new Date(base + 9 * MINUTO).toISOString(),
+        },
+        {
+          nome: "OrdDist velho",
+          criado_em: new Date(base + 1 * MINUTO).toISOString(),
+        },
+      ]);
+      const r = await listarClientes(a.clienteSupabase, { busca: "OrdDist" });
+      expect(r.itens.map((c) => c.nome)).toEqual([
+        "OrdDist novo",
+        "OrdDist meio",
+        "OrdDist velho",
+      ]);
+    });
+
+    it("criado_em igual: desempata por id decrescente, sem repetir nem perder linhas entre paginas", async () => {
+      const mesmoInstante = new Date(base + 2 * MINUTO).toISOString();
+      const criados = await semear(
+        Array.from({ length: 25 }, (_, i) => ({
+          nome: `OrdTie ${String(i).padStart(2, "0")}`,
+          criado_em: mesmoInstante,
+        })),
+      );
+      const p1 = await listarClientes(a.clienteSupabase, {
+        busca: "OrdTie",
+        pagina: 1,
+      });
+      const p2 = await listarClientes(a.clienteSupabase, {
+        busca: "OrdTie",
+        pagina: 2,
+      });
+      expect(p1.itens).toHaveLength(20);
+      expect(p2.itens).toHaveLength(5);
+      const vistos = [...p1.itens, ...p2.itens].map((c) => c.id);
+      expect(vistos).toEqual([...criados].sort().reverse());
+    });
+  });
+
+  describe("termos hostis na busca", () => {
+    const ids: string[] = [];
+    let hostis: string[];
+
+    beforeAll(async () => {
+      hostis = [
+        'zzz",nome.ilike."%',
+        `x,empresa_id.eq.${b.empresaId}`,
+        "a),(status.eq.lead",
+      ];
+      for (const h of hostis) {
+        ids.push((await criarCliente(a.clienteSupabase, novo(`Hos ${h}`))).id);
+      }
+      ids.push((await criarCliente(a.clienteSupabase, novo("Hos neutro"))).id);
+    });
+
+    afterAll(async () => {
+      for (const id of ids) await excluirCliente(a.clienteSupabase, id);
+    });
+
+    it.each([0, 1, 2])(
+      "termo hostil %s devolve apenas o cliente com esse texto literal",
+      async (i) => {
+        const nomes = await nomesDaBusca(a.clienteSupabase, hostis[i]);
+        expect(nomes).toEqual([`Hos ${hostis[i]}`]);
+      },
+    );
+
+    it("o termo com uuid da outra empresa nao traz linhas dela", async () => {
+      const r = await listarClientes(a.clienteSupabase, { busca: hostis[1] });
+      expect(r.itens.every((c) => c.empresa_id === a.empresaId)).toBe(true);
+    });
+  });
+
+  describe("asterisco sozinho", () => {
+    it("casa todos os nomes nao vazios da propria empresa e nada de outra", async () => {
+      const c = await criarCliente(a.clienteSupabase, novo("Star unico"));
+      try {
+        const deA = await listarClientes(a.clienteSupabase, { busca: "*" });
+        const todosA = await listarClientes(a.clienteSupabase, {});
+        expect(deA.total).toBe(todosA.total);
+        expect(deA.itens.every((x) => x.empresa_id === a.empresaId)).toBe(true);
+        const deB = await listarClientes(b.clienteSupabase, { busca: "*" });
+        expect(deB.itens.map((x) => x.nome)).not.toContain("Star unico");
+        expect(deB.itens.every((x) => x.empresa_id === b.empresaId)).toBe(true);
+      } finally {
+        await excluirCliente(a.clienteSupabase, c.id);
+      }
+    });
+  });
+
+  describe("payload de criar/atualizar", () => {
+    it("nao repassa chaves extras (empresa_id, id, criado_em)", async () => {
+      const idForjado = randomUUID();
+      const hostil = {
+        ...novo("Payload ok"),
+        empresa_id: b.empresaId,
+        id: idForjado,
+        criado_em: "2000-01-01T00:00:00Z",
+      } as ClienteInput;
+      const criado = await criarCliente(a.clienteSupabase, hostil);
+      try {
+        expect(criado.empresa_id).toBe(a.empresaId);
+        expect(criado.id).not.toBe(idForjado);
+        expect(new Date(criado.criado_em).getFullYear()).toBeGreaterThan(2000);
+        const atualizado = await atualizarCliente(
+          a.clienteSupabase,
+          criado.id,
+          {
+            ...hostil,
+            nome: "Payload editado",
+          } as ClienteInput,
+        );
+        expect(atualizado.id).toBe(criado.id);
+        expect(atualizado.empresa_id).toBe(a.empresaId);
+        expect(new Date(atualizado.criado_em).getFullYear()).toBeGreaterThan(
+          2000,
+        );
+      } finally {
+        await excluirCliente(a.clienteSupabase, criado.id);
       }
     });
   });
