@@ -1,0 +1,48 @@
+/* Único arquivo de cores do tema: escuro, fundo quase preto, destaque azul-violeta. */
+:root {
+  --fundo: #0b0b10;
+  --superficie: #14141c;
+  --borda: #262633;
+  --texto: #ededf2;
+  --texto-suave: #9a9aae;
+  --destaque: #6d5df6;
+  --destaque-hover: #8173ff;
+  --destaque-texto: #ffffff;
+  --erro: #f2555a;
+  --sucesso: #34c58a;
+
+  /* Tokens do shadcn/ui ligados ao tema */
+  --background: var(--fundo);
+  --foreground: var(--texto);
+  --card: var(--superficie);
+  --card-foreground: var(--texto);
+  --popover: var(--superficie);
+  --popover-foreground: var(--texto);
+  --primary: var(--destaque);
+  --primary-foreground: var(--destaque-texto);
+  --secondary: var(--borda);
+  --secondary-foreground: var(--texto);
+  --muted: var(--superficie);
+  --muted-foreground: var(--texto-suave);
+  --accent: var(--borda);
+  --accent-foreground: var(--texto);
+  --destructive: var(--erro);
+  --border: var(--borda);
+  --input: var(--borda);
+  --ring: var(--destaque);
+  --chart-1: var(--destaque);
+  --chart-2: #4f8cff;
+  --chart-3: var(--sucesso);
+  --chart-4: #c06cf5;
+  --chart-5: var(--texto-suave);
+  --radius: 0.625rem;
+  --sidebar: var(--superficie);
+  --sidebar-foreground: var(--texto);
+  --sidebar-primary: var(--destaque);
+  --sidebar-primary-foreground: var(--destaque-texto);
+  --sidebar-accent: var(--borda);
+  --sidebar-accent-foreground: var(--texto);
+  --sidebar-border: var(--borda);
+  --sidebar-ring: var(--destaque);
+  color-scheme: dark;
+}
