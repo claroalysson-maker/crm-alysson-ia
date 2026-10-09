@@ -5,9 +5,12 @@
 alter table public.perfis
   add column precisa_trocar_senha boolean not null default false;
 
--- authenticated nao tem UPDATE em perfis (so SELECT), entao o flag so e desligado por esta
--- funcao, e apenas no proprio perfil (auth.uid()). security definer + search_path fixo.
-create function public.concluir_troca_senha()
+-- authenticated so le perfis (SELECT): escrita direta e revogada aqui, alem de nao haver policy
+-- de escrita na RLS. O flag so e desligado por esta funcao, apenas no proprio perfil
+-- (auth.uid()). security definer + search_path fixo.
+revoke insert, update, delete on public.perfis from authenticated;
+
+create or replace function public.concluir_troca_senha()
 returns void
 language sql
 security definer

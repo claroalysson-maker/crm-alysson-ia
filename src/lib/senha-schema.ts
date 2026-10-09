@@ -6,13 +6,18 @@ export const ERRO_FALHA_TEMPORARIA = "Não foi possível alterar a senha agora. 
 export const ERRO_TROCA_INCOMPLETA =
   "Sua senha foi alterada, mas não foi possível concluir. Tente novamente com outra nova senha.";
 
-// 72 e o limite do bcrypt usado pelo Supabase Auth: acima disso a senha seria truncada.
+const LIMITE_BYTES_BCRYPT = 72;
+
+// O limite do bcrypt (usado pelo Supabase Auth) e em bytes, nao em caracteres:
+// acima disso a senha seria truncada, e acentos/emoji ocupam mais de 1 byte.
+const cabeNoBcrypt = (s: string) => new TextEncoder().encode(s).length <= LIMITE_BYTES_BCRYPT;
+
 export const senhaSchema = z
   .object({
     senha: z
       .string()
       .min(8, "A senha deve ter pelo menos 8 caracteres")
-      .max(72, "A senha deve ter no máximo 72 caracteres"),
+      .refine(cabeNoBcrypt, "A senha é longa demais (máximo de 72 bytes; acentos contam mais de 1)"),
     confirmacao: z.string(),
   })
   .refine((d) => d.senha === d.confirmacao, {

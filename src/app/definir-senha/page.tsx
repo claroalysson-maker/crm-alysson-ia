@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { sair } from "@/app/(app)/actions";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormularioSenha } from "./formulario-senha";
 
@@ -14,8 +16,13 @@ export default function PaginaDefinirSenha() {
             Este é o seu primeiro acesso. Escolha uma nova senha para continuar.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4">
           <FormularioSenha />
+          <form action={sair}>
+            <Button type="submit" variant="ghost" className="w-full">
+              Sair
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </main>

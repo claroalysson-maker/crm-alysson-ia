@@ -17,6 +17,13 @@ describe("senhaSchema", () => {
     expect(senhaSchema.safeParse({ senha: longa, confirmacao: longa }).success).toBe(false);
   });
 
+  it("o limite de 72 e em bytes: 40 acentuadas (80 bytes) sao rejeitadas, 36 (72 bytes) aceitas", () => {
+    const acima = "é".repeat(40);
+    expect(senhaSchema.safeParse({ senha: acima, confirmacao: acima }).success).toBe(false);
+    const limite = "é".repeat(36);
+    expect(senhaSchema.safeParse({ senha: limite, confirmacao: limite }).success).toBe(true);
+  });
+
   it("rejeita confirmacao diferente", () => {
     const r = senhaSchema.safeParse({ senha: "umaSenhaBoa1", confirmacao: "outraSenha12" });
     expect(r.success).toBe(false);
