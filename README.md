@@ -56,6 +56,8 @@ Não há cadastro (signup) no app. O dono do sistema cria o acesso manualmente p
 
 Usuários sem perfil são deslogados e não acessam o app.
 
+**Primeiro acesso.** Ao criar o perfil de um usuário novo com senha temporária, defina `precisa_trocar_senha = true` (padrão: `false`). No primeiro login ele é levado a `/definir-senha` e não acessa o resto do app até escolher uma nova senha. Requer a migração `0005_precisa_trocar_senha.sql`. A obrigatoriedade é de interface, não uma barreira de segurança: o usuário autenticado consegue chamar `concluir_troca_senha()` direto, sem trocar a senha.
+
 ## Migrations
 
 O esquema do banco (tabelas, políticas RLS e a função de indicadores) fica em [`supabase/migrations`](supabase/migrations), em ordem numérica. Aplique-as no projeto Supabase antes de usar o app.

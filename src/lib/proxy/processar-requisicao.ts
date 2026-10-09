@@ -45,11 +45,13 @@ export async function processarRequisicao(
 
   const pathname = request.nextUrl.pathname;
   let sessaoValida = false;
+  let precisaTrocarSenha = false;
   let destinoForcado: string | null = null;
   try {
     // Valida o token no Auth (getUser) e exige perfil: sessao valida = usuario + empresa.
     const estado = await obterEstadoSessao(supabase);
     sessaoValida = estado.tipo === "valida";
+    precisaTrocarSenha = estado.tipo === "valida" && estado.sessao.precisaTrocarSenha;
     const motivoDeLimpeza = MOTIVO_DE_LIMPEZA[estado.tipo];
     if (motivoDeLimpeza) {
       // Em /login nao redireciona: a pagina renderiza e um signOut falho nao gera loop.
@@ -64,7 +66,7 @@ export async function processarRequisicao(
     console.error("Falha ao verificar a sessao no proxy:", (erro as Error).message);
   }
 
-  const destino = destinoForcado ?? decidirRedirecionamento(pathname, sessaoValida);
+  const destino = destinoForcado ?? decidirRedirecionamento(pathname, sessaoValida, precisaTrocarSenha);
   if (!destino) return resposta;
 
   const redirecionamento = NextResponse.redirect(new URL(destino, request.url));

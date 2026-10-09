@@ -30,6 +30,7 @@ async function CascaDoApp({ children }: { children: ReactNode }) {
   }
   // O proxy ja redireciona antes; aqui e defesa em profundidade.
   if (sessao === null) redirect("/login");
+  if (sessao.precisaTrocarSenha) redirect("/definir-senha");
 
   return (
     <div className="flex flex-1 flex-col md:flex-row">

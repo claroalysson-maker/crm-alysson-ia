@@ -115,6 +115,31 @@ describe("processarRequisicao", () => {
     expect(new URL(resposta.headers.get("location")!).pathname).toBe("/login");
   });
 
+  describe("troca de senha obrigatoria no primeiro acesso", () => {
+    const precisaTrocar = {
+      data: { empresa_id: "e1", papel: "membro", precisa_trocar_senha: true },
+      error: null,
+    };
+    const caminhoDe = (r: Response) => new URL(r.headers.get("location")!).pathname;
+
+    it("rota protegida redireciona para /definir-senha", async () => {
+      const resposta = await montar("/dashboard", { perfil: precisaTrocar }).executar();
+      expect(resposta.status).toBe(307);
+      expect(caminhoDe(resposta)).toBe("/definir-senha");
+      expect(resposta.cookies.get("sb-token")?.value).toBe("renovado");
+    });
+
+    it("/definir-senha segue adiante para quem precisa trocar", async () => {
+      const resposta = await montar("/definir-senha", { perfil: precisaTrocar }).executar();
+      expect(resposta.headers.get("location")).toBeNull();
+    });
+
+    it("quem nao precisa trocar e mandado de /definir-senha para /dashboard", async () => {
+      const resposta = await montar("/definir-senha").executar();
+      expect(caminhoDe(resposta)).toBe("/dashboard");
+    });
+  });
+
   it("sessao valida em /login redireciona para /dashboard", async () => {
     const { executar } = montar("/login");
     const resposta = await executar();

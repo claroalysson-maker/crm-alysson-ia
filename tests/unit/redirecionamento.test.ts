@@ -21,3 +21,25 @@ describe("decidirRedirecionamento (segundo argumento: sessao valida)", () => {
     expect(decidirRedirecionamento("/dashboard", true)).toBeNull();
   });
 });
+
+describe("decidirRedirecionamento (terceiro argumento: precisa trocar a senha)", () => {
+  it("quem precisa trocar a senha e levado para /definir-senha em qualquer rota", () => {
+    expect(decidirRedirecionamento("/dashboard", true, true)).toBe("/definir-senha");
+    expect(decidirRedirecionamento("/clientes/1", true, true)).toBe("/definir-senha");
+    expect(decidirRedirecionamento("/login", true, true)).toBe("/definir-senha");
+    expect(decidirRedirecionamento("/", true, true)).toBe("/definir-senha");
+  });
+
+  it("em /definir-senha quem precisa trocar segue normalmente", () => {
+    expect(decidirRedirecionamento("/definir-senha", true, true)).toBeNull();
+  });
+
+  it("quem nao precisa trocar e mandado de /definir-senha para /dashboard", () => {
+    expect(decidirRedirecionamento("/definir-senha", true, false)).toBe("/dashboard");
+    expect(decidirRedirecionamento("/definir-senha", true)).toBe("/dashboard");
+  });
+
+  it("sem sessao /definir-senha vai para /login", () => {
+    expect(decidirRedirecionamento("/definir-senha", false)).toBe("/login");
+  });
+});
