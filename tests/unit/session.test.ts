@@ -82,6 +82,24 @@ describe("obterSessao", () => {
 
   it("devolve a sessao quando ha usuario e perfil", async () => {
     const db = dbComPerfil({ data: { empresa_id: "e1", papel: "admin" }, error: null });
-    expect(await obterSessao(db)).toEqual({ usuarioId: "u1", empresaId: "e1", papel: "admin" });
+    expect(await obterSessao(db)).toEqual({
+      usuarioId: "u1",
+      empresaId: "e1",
+      papel: "admin",
+      precisaTrocarSenha: false,
+    });
+  });
+
+  it("marca precisaTrocarSenha quando o perfil tem o flag ligado", async () => {
+    const db = dbComPerfil({
+      data: { empresa_id: "e1", papel: "membro", precisa_trocar_senha: true },
+      error: null,
+    });
+    expect(await obterSessao(db)).toEqual({
+      usuarioId: "u1",
+      empresaId: "e1",
+      papel: "membro",
+      precisaTrocarSenha: true,
+    });
   });
 });

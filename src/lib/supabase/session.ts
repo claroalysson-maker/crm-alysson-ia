@@ -4,6 +4,7 @@ export type Sessao = {
   usuarioId: string;
   empresaId: string;
   papel: "admin" | "membro";
+  precisaTrocarSenha: boolean;
 };
 
 export type EstadoSessao =
@@ -35,7 +36,7 @@ export async function obterEstadoSessao(db: SupabaseClient): Promise<EstadoSessa
 
   const { data: perfil, error: erroPerfil } = await db
     .from("perfis")
-    .select("empresa_id, papel")
+    .select("empresa_id, papel, precisa_trocar_senha")
     .eq("usuario_id", auth.user.id)
     .maybeSingle();
   if (erroPerfil) throw new Error(`Falha ao consultar o perfil do usuario: ${erroPerfil.message}`);
@@ -43,7 +44,12 @@ export async function obterEstadoSessao(db: SupabaseClient): Promise<EstadoSessa
 
   return {
     tipo: "valida",
-    sessao: { usuarioId: auth.user.id, empresaId: perfil.empresa_id, papel: perfil.papel },
+    sessao: {
+      usuarioId: auth.user.id,
+      empresaId: perfil.empresa_id,
+      papel: perfil.papel,
+      precisaTrocarSenha: perfil.precisa_trocar_senha === true,
+    },
   };
 }
 
