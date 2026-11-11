@@ -1,0 +1,13 @@
+services:
+  crm:
+    build:
+      context: https://github.com/claroalysson-maker/crm-alysson-ia.git#deploy/docker-compose
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: https://jzmclimixhmlcwoyjftt.supabase.co
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6bWNsaW1peGhtbGN3b3lqZnR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0OTkzNzksImV4cCI6MjEwOTA3NTM3OX0._V14G-qkQdYDraFQjvB0jQwCZDeL9V1soAAMeYU3g9c
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: https://jzmclimixhmlcwoyjftt.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6bWNsaW1peGhtbGN3b3lqZnR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0OTkzNzksImV4cCI6MjEwOTA3NTM3OX0._V14G-qkQdYDraFQjvB0jQwCZDeL9V1soAAMeYU3g9c
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
