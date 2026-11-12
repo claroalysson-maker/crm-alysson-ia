@@ -11,3 +11,9 @@ services:
     ports:
       - "3000:3000"
     restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.crm.rule=Host(`crm.alyssonda.tech`)
+      - traefik.http.routers.crm.entrypoints=websecure
+      - traefik.http.routers.crm.tls.certresolver=letsencrypt
+      - traefik.http.services.crm.loadbalancer.server.port=3000
